@@ -1,0 +1,820 @@
+<directory_structure>
+src/
+  features/
+    settings/
+      api/
+        services/
+          user.service.ts
+        index.ts
+        user.ts
+      components/
+        modals/
+          delete-account-modal.tsx
+        profile-settings-layout.tsx
+        profile-settings-section.tsx
+        settings-header-action.tsx
+        settings-section.tsx
+      lib/
+        types/
+          enums.ts
+          index.ts
+          settings.d.ts
+        validation/
+          index.ts
+          user.z.ts
+      pages/
+        general/
+          sections/
+            delete-account.tsx
+            theme.tsx
+            update-alias.tsx
+          index.tsx
+      header-actions.ts
+      modals.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/features/settings/api/services/user.service.ts">
+import tryCatch from '@/lib/core/utils/try-catch';
+import { TRPCThrow } from '@/trpc/server/api/site/errors';
+import { site } from '@/trpc/server/site';
+import type {
+	DeleteAccountFormInput,
+	UpdateAliasFormInput,
+} from '../../lib/validation/user.z';
+export const updateUserAlias = async (
+	userId: string,
+	input: UpdateAliasFormInput,
+) => {
+	const { alias } = input;
+	const { data: existingUser, error: findError } = await tryCatch(
+		site.user.findFirst({
+			where: {
+				alias,
+				NOT: {
+					id: userId,
+				},
+			},
+		}),
+	);
+	if (findError) {
+		console.error(
+			'updateUserAlias: A non-TRPC, unexpected error occurred while checking for existing alias',
+			findError,
+			{ userId, alias },
+		);
+		TRPCThrow.internalError(
+			'An unexpected error occurred. Please try again.',
+		);
+	}
+	if (existingUser) {
+		TRPCThrow.conflict(
+			'This alias is already taken. Please choose another one.',
+		);
+	}
+	const { data, error } = await tryCatch(
+		site.user.update({
+			where: { id: userId },
+			data: { alias },
+			select: { alias: true },
+		}),
+	);
+	if (error) {
+		console.error(
+			'updateUserAlias: A non-TRPC, unexpected error occurred',
+			error,
+			{ userId, alias },
+		);
+		TRPCThrow.internalError(
+			'An unexpected error occurred while updating your alias. Please try again.',
+		);
+	}
+	return {
+		success: true,
+		message: 'Your alias has been successfully updated.',
+		alias: data!.alias,
+	};
+};
+export const checkAlias = async (alias: string, userId: string) => {
+	if (alias.length < 5) {
+		return { available: false, message: 'Alias is too short.' };
+	}
+	const { data: user, error } = await tryCatch(
+		site.user.findFirst({
+			where: {
+				alias: alias,
+				id: {
+					not: userId,
+				},
+			},
+		}),
+	);
+	if (error) {
+		console.error(
+			'checkAliasAvailability: A non-TRPC, unexpected error occurred',
+			error,
+			{ alias },
+		);
+		TRPCThrow.internalError(
+			'An unexpected error occurred while checking alias availability.',
+		);
+	}
+	if (user) {
+		return { available: false, message: 'Alias is already taken.' };
+	}
+	return { available: true, message: 'Alias is available.' };
+};
+export const deleteUserAccount = async (
+	userId: string,
+	input: DeleteAccountFormInput,
+) => {
+	const { data: user, error: findError } = await tryCatch(
+		site.user.findUnique({
+			where: { id: userId },
+			select: { email: true },
+		}),
+	);
+	if (findError) {
+		console.error(
+			'deleteUserAccount: A non-TRPC, unexpected error occurred while finding user',
+			findError,
+			{ userId },
+		);
+		TRPCThrow.internalError(
+			'An unexpected error occurred while deleting your account. Please try again or contact support if the issue persists.',
+		);
+	}
+	if (!user) {
+		TRPCThrow.notFound(
+			'Cannot delete account: User account not found. Please log out and log back in.',
+		);
+	}
+	if (user?.email?.toLowerCase() !== input.email.toLowerCase()) {
+		TRPCThrow.badRequest(
+			'The email you entered does not match your account email.',
+		);
+	}
+	const { error } = await tryCatch(
+		site.user.delete({
+			where: { id: userId },
+		}),
+	);
+	if (error) {
+		console.error(
+			'deleteUserAccount: A non-TRPC, unexpected error occurred',
+			error,
+			{ userId },
+		);
+		TRPCThrow.internalError(
+			'An unexpected error occurred while deleting your account. Please try again or contact support if the issue persists.',
+		);
+	}
+	return {
+		success: true,
+		message: 'Your account has been successfully deleted',
+	};
+};
+export const checkUserOnboarding = async (userId: string) => {
+	const { data, error } = await tryCatch(
+		site.user.findUnique({
+			where: {
+				id: userId,
+			},
+			select: {
+				onboardingCompleted: true,
+			},
+		}),
+	);
+	if (error) {
+		console.error(
+			'checkUserOnboarding: A non-TRPC, unexpected error occurred',
+			error,
+			{ userId },
+		);
+		TRPCThrow.internalError(
+			'An unexpected error occurred while checking your onboarding status. Please refresh the page and try again.',
+		);
+	}
+	if (!data) {
+		return {
+			success: true,
+			isComplete: false,
+		};
+	}
+	return {
+		success: true,
+		isComplete: data.onboardingCompleted ?? false,
+	};
+};
+export const updateUserOnboarding = async (
+	userId: string,
+	complete: boolean,
+) => {
+	const { data, error } = await tryCatch(
+		site.user.update({
+			where: {
+				id: userId,
+			},
+			data: {
+				onboardingCompleted: complete,
+				updatedAt: new Date(),
+			},
+			select: {
+				onboardingCompleted: true,
+			},
+		}),
+	);
+	if (error) {
+		console.error(
+			'updateUserOnboarding: A non-TRPC, unexpected error occurred',
+			error,
+			{ userId, complete },
+		);
+		TRPCThrow.internalError(
+			'An unexpected error occurred while updating your onboarding status. Please try again.',
+		);
+	}
+	if (!data) {
+		TRPCThrow.notFound(
+			'Cannot update onboarding: User account not found. Please log out and log back in.',
+		);
+	}
+	return {
+		success: true,
+		complete: data!.onboardingCompleted,
+	};
+};
+</file>
+
+<file path="src/features/settings/api/index.ts">
+import { createTRPCRouter } from '@/trpc/server/api/site/trpc';
+import { generalRouter } from './user';
+export const settingsRouter = createTRPCRouter({
+	general: generalRouter,
+});
+</file>
+
+<file path="src/features/settings/api/user.ts">
+import {
+	createTRPCRouter,
+	protectedProcedure,
+} from '@/trpc/server/api/site/trpc';
+import {
+	CheckAliasSchema,
+	DeleteAccountFormSchema,
+	UpdateAliasFormSchema,
+	UpdateOnboardingSchema,
+} from '../lib/validation/user.z';
+import {
+	checkAlias as checkAliasAvailability,
+	checkUserOnboarding,
+	deleteUserAccount,
+	updateUserAlias,
+	updateUserOnboarding,
+} from './services/user.service';
+const updateAlias = protectedProcedure
+	.input(UpdateAliasFormSchema)
+	.mutation(async ({ ctx, input }) => {
+		return updateUserAlias(ctx.session.user.id, input);
+	});
+const checkAlias = protectedProcedure
+	.input(CheckAliasSchema)
+	.query(async ({ ctx, input }) => {
+		return checkAliasAvailability(input.alias, ctx.session.user.id);
+	});
+const deleteAccount = protectedProcedure
+	.input(DeleteAccountFormSchema)
+	.mutation(async ({ ctx, input }) => {
+		return deleteUserAccount(ctx.session.user.id, input);
+	});
+const checkOnboarding = protectedProcedure.query(async ({ ctx }) => {
+	return checkUserOnboarding(ctx.session.user.id);
+});
+const updateOnboarding = protectedProcedure
+	.input(UpdateOnboardingSchema)
+	.mutation(async ({ ctx, input }) => {
+		return updateUserOnboarding(ctx.session.user.id, input.complete);
+	});
+export const generalRouter = createTRPCRouter({
+	updateAlias,
+	checkAlias,
+	deleteAccount,
+	checkOnboarding,
+	updateOnboarding,
+});
+</file>
+
+<file path="src/features/settings/components/modals/delete-account-modal.tsx">
+'use client';
+import {
+	Form,
+	FormControl,
+	FormDescription,
+	FormField,
+	FormItem,
+	FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { DeleteAccountFormSchema } from '@/features/settings/lib/validation/user.z';
+import { createFormErrorHandler } from '@/hooks/useHandleFormError';
+import {
+	handleTRPCError,
+	handleTRPCSuccess,
+} from '@/lib/core/errors/error-handler';
+import tryCatch from '@/lib/core/utils/try-catch';
+import { ModalFooterActions } from '@/modals/modal-footer-actions';
+import ModalLayout from '@/modals/modal-layout';
+import { api } from '@/trpc/react';
+import { useModalStore } from '@/zustand/ui/useModalStore';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { signOut, useSession } from 'next-auth/react';
+import React, { useCallback, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import type { z } from 'zod';
+const DeleteAccountModal: React.FC = () => {
+	const { data: session } = useSession();
+	const { hide } = useModalStore();
+	const [isDeleting, setIsDeleting] = useState(false);
+	const form = useForm<z.infer<typeof DeleteAccountFormSchema>>({
+		resolver: zodResolver(DeleteAccountFormSchema),
+		defaultValues: { delete: '', email: '' },
+		mode: 'onSubmit',
+	});
+	const deleteAccountMutation =
+		api.settings.general.deleteAccount.useMutation({
+			onMutate: () => setIsDeleting(true),
+			onSettled: () => setIsDeleting(false),
+		});
+	const handleSignOut = useCallback(async () => {
+		const { error } = await tryCatch(signOut({ callbackUrl: '/' }));
+		if (error) {
+			console.error('Sign out failed', error);
+			handleTRPCError(
+				error,
+				'Unable to sign out. Please close the browser.',
+			);
+		}
+	}, []);
+	const onSubmit = useCallback(
+		async (values: z.infer<typeof DeleteAccountFormSchema>) => {
+			if (isDeleting) return;
+			if (
+				values.email.toLowerCase() !==
+				session?.user?.email?.toLowerCase()
+			) {
+				handleTRPCError(
+					new Error('Email does not match your account email'),
+				);
+				return;
+			}
+			const { data: result, error } = await tryCatch(
+				deleteAccountMutation.mutateAsync(values),
+			);
+			if (error) {
+				handleTRPCError(error, 'Failed to delete account');
+				return;
+			}
+			if (result) {
+				handleTRPCSuccess('Account deleted successfully!', result);
+				hide();
+				await handleSignOut();
+			}
+		},
+		[
+			deleteAccountMutation,
+			handleSignOut,
+			isDeleting,
+			session?.user?.email,
+			hide,
+		],
+	);
+	const formErrorHandler =
+		createFormErrorHandler<z.infer<typeof DeleteAccountFormSchema>>();
+	if (!session?.user) return null;
+	const handleSubmit = () => {
+		void form.handleSubmit(onSubmit, formErrorHandler)();
+	};
+	const footerActions = (
+		<ModalFooterActions
+			actions={[
+				{
+					label: 'Cancel',
+					onClick: () => hide(),
+					variant: 'none',
+					disabled: isDeleting,
+					'aria-label': 'Cancel and close modal',
+					priority: 'secondary',
+				},
+				{
+					label: 'Delete Account',
+					onClick: handleSubmit,
+					variant: 'destructive',
+					disabled: isDeleting,
+					loading: isDeleting,
+					'aria-label': 'Delete account permanently',
+					priority: 'primary',
+				},
+			]}
+		/>
+	);
+	return (
+		<ModalLayout
+			title='Delete Account'
+			description='This action is irreversible. Confirm your account deletion by typing "confirm delete account" and entering your account email.'
+			displayImage={{
+				type: 'image',
+				src: session?.user?.image || '',
+				alt:
+					(session?.user?.name ?? 'Avatar').replaceAll(' ', '') ||
+					'Avatar',
+			}}
+			footer={footerActions}
+		>
+			<Form {...form}>
+				<form onSubmit={(e) => e.preventDefault()}>
+					<div className='flex flex-col space-y-4 p-4 text-left sm:px-20 md:px-14'>
+						<FormField
+							control={form.control}
+							name='delete'
+							render={({ field }) => (
+								<FormItem className='space-y-1'>
+									<FormDescription className='text-pretty text-left text-xs tracking-normal sm:text-sm'>
+										Please type{' '}
+										<code className='text-normal py-.5 rounded-sm bg-muted px-1 font-semibold tracking-tighter'>
+											confirm delete account
+										</code>
+									</FormDescription>
+									<FormControl>
+										<Input
+											aria-label='Delete Account'
+											type='text'
+											{...field}
+											autoComplete='off'
+											autoFocus
+											disabled={isDeleting}
+											aria-describedby='delete-account-description'
+											aria-invalid={
+												!!form.formState.errors.delete
+											}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+						<FormField
+							control={form.control}
+							name='email'
+							render={({ field }) => (
+								<FormItem className='space-y-1'>
+									<FormDescription className='text-pretty text-left text-xs tracking-normal sm:text-sm'>
+										Please enter your{' '}
+										<code className='text-normal py-.5 rounded-sm bg-muted px-1 font-semibold tracking-tighter'>
+											account email
+										</code>
+									</FormDescription>
+									<FormControl>
+										<Input
+											aria-label='Email'
+											type='email'
+											{...field}
+											autoComplete='email'
+											disabled={isDeleting}
+											aria-describedby='email-confirmation-description'
+											aria-invalid={
+												!!form.formState.errors.email
+											}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+					</div>
+				</form>
+			</Form>
+		</ModalLayout>
+	);
+};
+export default React.memo(DeleteAccountModal);
+</file>
+
+<file path="src/features/settings/components/profile-settings-layout.tsx">
+import React from 'react';
+import ListItem from '../../../components/layouts/list-item';
+interface ProfileSettingsLayoutProps {
+	children: React.ReactNode;
+}
+const ProfileSettingsLayout = (props: ProfileSettingsLayoutProps) => {
+	return <ListItem>{props.children}</ListItem>;
+};
+export default ProfileSettingsLayout;
+</file>
+
+<file path="src/features/settings/components/profile-settings-section.tsx">
+import type { ProfileSettingsSectionProps } from '../lib/types';
+const ProfileSettingsSection = (props: ProfileSettingsSectionProps) => {
+	const { title, description, children } = props;
+	return (
+		<div className='flex flex-col space-y-4'>
+			<div className='flex flex-col space-y-1'>
+				<h1 className='overflow-hidden truncate font-medium'>
+					{title}
+				</h1>
+				<p className='text-xs text-muted-foreground'>{description}</p>
+			</div>
+			{children}
+		</div>
+	);
+};
+export default ProfileSettingsSection;
+</file>
+
+<file path="src/features/settings/components/settings-header-action.tsx">
+'use client';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
+import { SettingsRoutes, type SettingsRoutesType } from '@/features/settings/lib/types';
+import { formatEnumToTitleCase } from '@/lib/core/utils';
+import { usePathname, useRouter } from 'next/navigation';
+import { useTransition } from 'react';
+const SettingsAction = () => {
+	const pathname = usePathname();
+	const router = useRouter();
+	const [isPending, startTransition] = useTransition();
+	const getCurrentRoute = (): SettingsRoutesType => {
+		if (pathname === '/settings') return SettingsRoutes.General;
+		const routeSegment = pathname.replace('/settings/', '');
+		const matchedRoute = Object.values(SettingsRoutes).find(
+			(route) => route === routeSegment,
+		);
+		return matchedRoute ?? SettingsRoutes.General;
+	};
+	const currentRoute = getCurrentRoute();
+	const handleRouteChange = (value: string) => {
+		startTransition(() => {
+			const route = value as SettingsRoutesType;
+			if (route === SettingsRoutes.General) {
+				router.push('/settings');
+			} else {
+				router.push(`/settings/${route}`);
+			}
+		});
+	};
+	return (
+		<>
+			<Select
+				value={currentRoute}
+				onValueChange={handleRouteChange}
+				disabled={isPending}
+			>
+				<SelectTrigger
+					variant='none'
+					aria-label='Select a category'
+					disabled={isPending}
+				>
+					<SelectValue
+						placeholder='Select a category'
+						aria-label='Category Values'
+					/>
+				</SelectTrigger>
+				<SelectContent highZIndex aria-label='Category Options'>
+					{Object.values(SettingsRoutes).map((category) => (
+						<SelectItem
+							key={category}
+							value={category}
+							aria-label={category}
+						>
+							{formatEnumToTitleCase(category)}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</>
+	);
+};
+export default SettingsAction;
+</file>
+
+<file path="src/features/settings/components/settings-section.tsx">
+import ListItem from '@/components/layouts/list-item';
+import type { ProfileSettingsSectionProps } from '../lib/types';
+const SettingsSection = ({
+	title,
+	description,
+	children,
+}: ProfileSettingsSectionProps) => {
+	return (
+		<ListItem>
+			<div className='flex h-full w-full flex-col'>
+				<h3 className='text-lg font-semibold'>{title}</h3>
+				<p className='text-sm text-muted-foreground'>{description}</p>
+			</div>
+			<div className='w-full'>{children}</div>
+		</ListItem>
+	);
+};
+export default SettingsSection;
+</file>
+
+<file path="src/features/settings/lib/types/enums.ts">
+export const SettingsRoutes = {
+	General: 'GENERAL',
+} as const;
+export type SettingsRoutesType = typeof SettingsRoutes[keyof typeof SettingsRoutes];
+</file>
+
+<file path="src/features/settings/lib/types/index.ts">
+export * from './enums';
+export type * from './settings';
+</file>
+
+<file path="src/features/settings/lib/types/settings.d.ts">
+export interface ProfileSettingsSectionProps {
+	title: string;
+	description: string;
+	children: React.ReactNode;
+}
+</file>
+
+<file path="src/features/settings/lib/validation/index.ts">
+export * from './user.z';
+</file>
+
+<file path="src/features/settings/lib/validation/user.z.ts">
+import * as z from 'zod';
+export const DeleteAccountFormSchema = z.object({
+	delete: z
+		.string()
+		.min(1, 'Confirmation text is required')
+		.trim()
+		.refine((value) => value.toLowerCase() === 'confirm delete account', {
+			message: 'Please type exactly "confirm delete account"',
+		}),
+	email: z.preprocess(
+		(val) => (typeof val === 'string' ? val.trim() : val),
+		z.email(),
+	),
+});
+export const UpdateProfileFormSchema = z.object({
+	name: z
+		.string()
+		.max(100, 'Name must be less than 100 characters')
+		.trim()
+		.optional(),
+});
+export const UpdateAliasFormSchema = z.object({
+	alias: z
+		.string()
+		.min(5, 'Alias must be at least 5 characters')
+		.max(30, 'Alias cannot exceed 30 characters')
+		.regex(
+			/^[a-zA-Z0-9_.-]+$/,
+			'Alias can only contain letters, numbers, underscores, periods, and hyphens',
+		)
+		.trim(),
+});
+export const CheckAliasSchema = z.object({
+	alias: z.string(),
+});
+export const UpdateOnboardingSchema = z.object({
+	complete: z.boolean(),
+});
+export type DeleteAccountFormInput = z.infer<typeof DeleteAccountFormSchema>;
+export type UpdateProfileFormInput = z.infer<typeof UpdateProfileFormSchema>;
+export type UpdateAliasFormInput = z.infer<typeof UpdateAliasFormSchema>;
+export type CheckAliasInput = z.infer<typeof CheckAliasSchema>;
+export type UpdateOnboardingInput = z.infer<typeof UpdateOnboardingSchema>;
+</file>
+
+<file path="src/features/settings/pages/general/sections/delete-account.tsx">
+'use client';
+import { Button } from '@/components/ui/button';
+import { useModals } from '@/hooks/useModals';
+const DeleteAccount = () => {
+	const modals = useModals();
+	return (
+		<Button
+			className='w-fit'
+			onClick={() => modals.show.deleteAccount({})}
+			variant='destructive'
+			text='Confirm Delete Account'
+			aria-label='Delete Account'
+		/>
+	);
+};
+export default DeleteAccount;
+</file>
+
+<file path="src/features/settings/pages/general/sections/theme.tsx">
+'use client';
+import { useTheme } from 'next-themes';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/core/utils';
+export default function Theme() {
+	const { setTheme, theme } = useTheme();
+	return (
+		<div className='flex flex-row'>
+			<Button
+				className={cn(
+					'rounded-r-none border-r-0',
+					theme === 'system' && 'pointer-events-none',
+				)}
+				variant={theme === 'system' ? 'default' : 'outline'}
+				size='sm'
+				onClick={() => setTheme('system')}
+				text='System'
+				aria-label='System Theme'
+			/>
+			<Button
+				className={cn(
+					'rounded-l-none rounded-r-none',
+					theme === 'dark' && 'pointer-events-none',
+				)}
+				variant={theme === 'dark' ? 'default' : 'outline'}
+				size='sm'
+				onClick={() => setTheme('dark')}
+				text='Dark'
+				aria-label='Dark Theme'
+			/>
+			<Button
+				className={cn(
+					'rounded-l-none border-l-0',
+					theme === 'light' && 'pointer-events-none',
+				)}
+				variant={theme === 'light' ? 'default' : 'outline'}
+				size='sm'
+				onClick={() => setTheme('light')}
+				text='Light'
+				aria-label='Light Theme'
+			/>
+		</div>
+	);
+}
+</file>
+
+<file path="src/features/settings/pages/general/sections/update-alias.tsx">
+const UpdateAlias = () => {
+	return <div>UpdateAlias</div>;
+};
+export default UpdateAlias;
+</file>
+
+<file path="src/features/settings/pages/general/index.tsx">
+import SettingsSection from '@/features/settings/components/settings-section';
+import DeleteAccount from './sections/delete-account';
+import Theme from './sections/theme';
+const GeneralSettings = () => {
+	return (
+		<>
+			{
+}
+			<SettingsSection
+				title='Dark Mode'
+				description='Change your theme.'
+				children={<Theme />}
+			/>
+			<SettingsSection
+				title='Delete Account'
+				description='Delete your account. This action is irreversible.'
+				children={<DeleteAccount />}
+			/>
+		</>
+	);
+};
+export default GeneralSettings;
+</file>
+
+<file path="src/features/settings/header-actions.ts">
+import { lazy } from 'react';
+import { createHeaderActionDefinition } from '@/lib/ui/header-actions';
+export const settingsPage = createHeaderActionDefinition({
+	Component: lazy(() => import('./components/settings-header-action')),
+	config: {
+		routeMatcher: '/settings',
+	},
+});
+</file>
+
+<file path="src/features/settings/modals.ts">
+import { lazy } from 'react';
+import { createModalDefinition } from '@/lib/ui/modals';
+export const deleteAccount = createModalDefinition({
+	Component: lazy(() => import('./components/modals/delete-account-modal')),
+	defaultConfig: {
+		size: 'md',
+		preventEscapeClose: true,
+		title: 'Delete Account',
+		description: 'Confirm account deletion',
+	},
+});
+</file>
+
+</files>

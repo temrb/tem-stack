@@ -1,0 +1,102 @@
+generator client {
+    provider        = "prisma-client"
+    output          = "../.generated"
+    previewFeatures = ["relationJoins"]
+    runtime         = "nodejs"
+    engineType      = "client"
+}
+
+datasource db {
+    provider     = "postgresql"
+    url          = env("SITE_DATABASE_URL")
+    directUrl    = env("SITE_DIRECT_URL")
+    relationMode = "foreignKeys"
+}
+
+model Account {
+    id                String  @id @default(cuid(2))
+    userId            String  @unique
+    type              String
+    provider          String
+    providerAccountId String
+    refresh_token     String?
+    access_token      String?
+    expires_at        Int?
+    token_type        String?
+    scope             String?
+    id_token          String?
+    session_state     String?
+    user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([provider, providerAccountId])
+    @@index([userId])
+}
+
+model Session {
+    id           String   @id @default(cuid(2))
+    sessionToken String   @unique
+    userId       String   @unique
+    expires      DateTime
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+}
+
+model VerificationToken {
+    identifier String
+    token      String
+    expires    DateTime
+
+    @@unique([identifier, token])
+}
+
+model Token {
+    id         String    @id @default(cuid(2))
+    name       String
+    hashedKey  String    @unique
+    partialKey String
+    expires    DateTime?
+    lastUsed   DateTime?
+    createdAt  DateTime  @default(now())
+    updatedAt  DateTime  @updatedAt
+    userId     String
+    user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+}
+
+model User {
+    id                  String    @id @default(cuid(2))
+    createdAt           DateTime  @default(now())
+    updatedAt           DateTime  @updatedAt
+    alias               String    @unique @default(cuid(2))
+    name                String?
+    email               String?   @unique
+    emailVerified       DateTime?
+    image               String?
+    onboardingCompleted Boolean   @default(false)
+    role                UserRole  @default(USER)
+    tier                UserTier  @default(FREE)
+    banned              Boolean   @default(false)
+    banReason           String?
+
+    account Account?
+    session Session?
+    token   Token[]
+
+    @@index([alias])
+    @@index([email])
+    @@index([role])
+    @@index([tier])
+}
+
+enum UserRole {
+    USER
+    ADMIN
+}
+
+enum UserTier {
+    FREE
+    PRO
+    MAX
+}

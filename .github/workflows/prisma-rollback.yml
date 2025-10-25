@@ -1,0 +1,314 @@
+name: 'Prisma Migration Rollback'
+
+# PURPOSE: Safely rollback a failed migration in production
+# WARNING: This is a CRITICAL operation that should only be used in emergencies
+#
+# WHEN TO USE:
+#   - A migration was deployed but caused production issues
+#   - You need to mark a migration as "rolled back" to allow re-deployment
+#   - You need to restore database to a previous migration state
+#
+# WHAT IT DOES:
+#   1. Shows migration history and current status
+#   2. Validates the rollback is safe (migration hasn't been applied yet, or can be reverted)
+#   3. Marks the migration as "rolled back" using `prisma migrate resolve`
+#   4. Provides guidance on manual SQL rollback if needed
+#
+# IMPORTANT NOTES:
+#   - Prisma does NOT support automatic "down" migrations
+#   - This workflow marks migrations as rolled back in the tracking table
+#   - You may need to manually write and execute SQL to revert schema changes
+#   - Always backup your database before rolling back
+
+on:
+  workflow_dispatch:
+    inputs:
+      schema:
+        description: 'Which schema to rollback (site, etc.)'
+        required: true
+        type: choice
+        options:
+          - site
+        default: site
+      migration_name:
+        description: 'Migration name to rollback (e.g., 20240101000000_init)'
+        required: true
+        type: string
+      rollback_type:
+        description: 'Type of rollback operation'
+        required: true
+        type: choice
+        options:
+          - mark-rolled-back
+          - mark-applied
+        default: mark-rolled-back
+      confirm_backup:
+        description: 'I confirm database backup is recent and verified'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write  # To create incident reports
+
+jobs:
+  rollback-migration:
+    name: 'Rollback ${{ github.event.inputs.schema }} migration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Require production environment approval
+    environment:
+      name: production-rollback
+      url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: '🛑 Validate backup confirmation'
+        run: |
+          if [[ "${{ github.event.inputs.confirm_backup }}" != "true" ]]; then
+            echo "❌ ERROR: Backup confirmation required"
+            echo ""
+            echo "You must confirm that you have a recent, verified database backup"
+            echo "before proceeding with a rollback operation."
+            echo ""
+            echo "Please re-run this workflow and check the backup confirmation."
+            exit 1
+          fi
+
+          echo "✅ Backup confirmation received"
+
+      - name: '📥 Checkout repository'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: '🔧 Setup Bun'
+        uses: oven-sh/setup-bun@v2
+
+      - name: '📦 Install dependencies'
+        run: bun install --frozen-lockfile
+
+      - name: '🔧 Configure production database'
+        run: |
+          SCHEMA_PATH="src/prisma/${{ github.event.inputs.schema }}/schema"
+          echo "SCHEMA_PATH=${SCHEMA_PATH}" >> $GITHUB_ENV
+
+          if [[ "${{ github.event.inputs.schema }}" == "site" ]]; then
+            if [[ -z "${{ secrets.PROD_SITE_DATABASE_URL }}" ]]; then
+              echo "❌ Error: PROD_SITE_DATABASE_URL secret not configured"
+              exit 1
+            fi
+            echo "DATABASE_URL=${{ secrets.PROD_SITE_DATABASE_URL }}" >> $GITHUB_ENV
+            echo "SITE_DATABASE_URL=${{ secrets.PROD_SITE_DATABASE_URL }}" >> $GITHUB_ENV
+            echo "SITE_DIRECT_URL=${{ secrets.PROD_SITE_DIRECT_URL }}" >> $GITHUB_ENV
+          # Add else-if blocks here for additional databases
+          fi
+
+      - name: '📊 Show migration history'
+        id: show_history
+        run: |
+          echo "📊 Current migration status:"
+          echo "════════════════════════════════════════════════════════════"
+
+          # Show current migration status
+          STATUS_OUTPUT=$(bunx prisma migrate status --schema=${{ env.SCHEMA_PATH }} 2>&1 || true)
+          echo "${STATUS_OUTPUT}"
+
+          echo "════════════════════════════════════════════════════════════"
+
+          # Save status for validation
+          echo "${STATUS_OUTPUT}" > migration-status.txt
+
+      - name: '🔍 Validate rollback target'
+        id: validate_rollback
+        run: |
+          MIGRATION_NAME="${{ github.event.inputs.migration_name }}"
+          MIGRATION_DIR="src/prisma/${{ github.event.inputs.schema }}/migrations/${MIGRATION_NAME}"
+
+          echo "🔍 Validating migration: ${MIGRATION_NAME}"
+
+          # Check if migration directory exists
+          if [ ! -d "${MIGRATION_DIR}" ]; then
+            echo "❌ ERROR: Migration directory not found"
+            echo "Path checked: ${MIGRATION_DIR}"
+            echo ""
+            echo "Available migrations:"
+            ls -1 "src/prisma/${{ github.event.inputs.schema }}/migrations/" || echo "No migrations found"
+            exit 1
+          fi
+
+          echo "✅ Migration directory exists"
+
+          # Check if migration SQL file exists
+          if [ ! -f "${MIGRATION_DIR}/migration.sql" ]; then
+            echo "❌ ERROR: migration.sql not found in migration directory"
+            exit 1
+          fi
+
+          echo "✅ Migration SQL file exists"
+
+          # Show migration SQL content
+          echo ""
+          echo "📄 Migration SQL Content:"
+          echo "════════════════════════════════════════════════════════════"
+          cat "${MIGRATION_DIR}/migration.sql"
+          echo "════════════════════════════════════════════════════════════"
+
+          # Save for rollback planning
+          cat "${MIGRATION_DIR}/migration.sql" > migration-to-rollback.sql
+
+      - name: '⚠️ Display rollback warning'
+        run: |
+          echo "════════════════════════════════════════════════════════════"
+          echo "🚨 CRITICAL WARNING: DATABASE ROLLBACK OPERATION 🚨"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "You are about to rollback migration:"
+          echo "  📦 Schema: ${{ github.event.inputs.schema }}"
+          echo "  🔖 Migration: ${{ github.event.inputs.migration_name }}"
+          echo "  🔧 Operation: ${{ github.event.inputs.rollback_type }}"
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+          echo "⚠️  IMPORTANT NOTES:"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "1. This will mark the migration as '${{ github.event.inputs.rollback_type }}'"
+          echo "   in Prisma's migration tracking table (_prisma_migrations)"
+          echo ""
+          echo "2. This does NOT automatically revert schema changes"
+          echo "   - You must manually write SQL to undo schema changes"
+          echo "   - Review migration SQL above to plan manual reversion"
+          echo ""
+          echo "3. Data may be lost if not handled carefully"
+          echo "   - Ensure backup is recent and verified"
+          echo "   - Test rollback procedure in staging first"
+          echo ""
+          echo "4. After marking as rolled back, you can:"
+          echo "   - Deploy a new migration that fixes the issue (recommended)"
+          echo "   - Manually revert schema changes and redeploy same migration"
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+
+      - name: '🔄 Execute rollback operation'
+        id: execute_rollback
+        run: |
+          MIGRATION_NAME="${{ github.event.inputs.migration_name }}"
+          ROLLBACK_TYPE="${{ github.event.inputs.rollback_type }}"
+
+          echo "🔄 Executing rollback: ${ROLLBACK_TYPE}"
+
+          if [[ "${ROLLBACK_TYPE}" == "mark-rolled-back" ]]; then
+            echo "Marking migration as rolled back..."
+            bunx prisma migrate resolve \
+              --rolled-back "${MIGRATION_NAME}" \
+              --schema=${{ env.SCHEMA_PATH }}
+
+            echo "✅ Migration marked as rolled back"
+
+          elif [[ "${ROLLBACK_TYPE}" == "mark-applied" ]]; then
+            echo "Marking migration as applied..."
+            bunx prisma migrate resolve \
+              --applied "${MIGRATION_NAME}" \
+              --schema=${{ env.SCHEMA_PATH }}
+
+            echo "✅ Migration marked as applied"
+
+          else
+            echo "❌ Invalid rollback type: ${ROLLBACK_TYPE}"
+            exit 1
+          fi
+
+      - name: '📊 Verify rollback status'
+        run: |
+          echo "📊 Post-rollback migration status:"
+          echo "════════════════════════════════════════════════════════════"
+
+          bunx prisma migrate status --schema=${{ env.SCHEMA_PATH }}
+
+          echo "════════════════════════════════════════════════════════════"
+          echo "✅ Rollback completed successfully"
+
+      - name: '📋 Create rollback incident report'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const migrationSql = require('fs').readFileSync('migration-to-rollback.sql', 'utf8');
+
+            const issueTitle = `🔄 Migration Rollback: ${{ github.event.inputs.migration_name }}`;
+            const issueBody = `## Migration Rollback Report
+
+            **Migration**: \`${{ github.event.inputs.migration_name }}\`
+            **Schema**: \`${{ github.event.inputs.schema }}\`
+            **Rollback Type**: \`${{ github.event.inputs.rollback_type }}\`
+            **Executed By**: @${{ github.actor }}
+            **Timestamp**: ${new Date().toISOString()}
+            **Workflow Run**: [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            ---
+
+            ### 📄 Original Migration SQL
+
+            \`\`\`sql
+            ${migrationSql}
+            \`\`\`
+
+            ---
+
+            ### ⚠️ Action Required
+
+            This migration has been marked as **${{ github.event.inputs.rollback_type }}** in the tracking table.
+
+            ${
+              '${{ github.event.inputs.rollback_type }}' === 'mark-rolled-back'
+              ? `
+            **Next Steps:**
+
+            1. **Review the migration SQL above** to understand what schema changes were made
+            2. **Write manual SQL to revert schema changes** if needed:
+               - Reverse any ALTER TABLE statements
+               - Restore any dropped tables/columns (from backup)
+               - Remove any added tables/columns
+            3. **Test the reversion SQL** in a staging environment first
+            4. **Execute the reversion SQL** against production (if applicable)
+            5. **Create a new migration** that fixes the original issue
+            6. **Deploy the fix migration** through normal CI/CD process
+
+            **OR**
+
+            If the rollback was to fix a migration conflict:
+            1. Resolve the migration conflict in your local environment
+            2. Create a new migration with the correct changes
+            3. Deploy through normal CI/CD process
+              `
+              : `
+            **Next Steps:**
+
+            The migration has been marked as applied. No further action is needed unless:
+            - The schema changes were not actually applied (verify manually)
+            - There are data inconsistencies (investigate and fix)
+              `
+            }
+
+            ---
+
+            ### 📚 Reference Documentation
+
+            - [Prisma Migration Runbook](./.github/PRISMA_RUNBOOK.md)
+            - [Prisma Resolve Documentation](https://www.prisma.io/docs/reference/api-reference/command-reference#migrate-resolve)
+
+            ---
+
+            **Generated by**: Prisma Rollback Workflow
+            `;
+
+            const newIssue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: issueBody,
+              labels: ['database', 'migration-rollback', 'incident', '${{ github.event.inputs.schema }}']
+            });
+
+            core.info(`Created rollback incident report: #${newIssue.data.number}`);
+            core.notice(`Rollback incident report created: ${newIssue.data.html_url}`);

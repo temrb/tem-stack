@@ -1,0 +1,214 @@
+name: 'Prisma Drift Detection'
+
+# PURPOSE: Detects schema drift between committed migrations and production database
+# WHEN TO USE:
+#   - Manually trigger when you suspect production DB has been modified outside of migrations
+#   - After discovering migration failures in production
+#   - During incident investigation
+#
+# WHAT IT DOES:
+#   1. Connects to production database (read-only access)
+#   2. Introspects actual schema using `prisma db pull`
+#   3. Compares against committed schema using `prisma migrate diff`
+#   4. Creates GitHub issue if drift detected with SQL diff details
+
+on:
+  workflow_dispatch:
+    inputs:
+      schema:
+        description: 'Which schema to check (site or both)'
+        required: true
+        type: choice
+        options:
+          - both
+          - site
+        default: site
+
+permissions:
+  contents: read
+  issues: write  # Required to create issues when drift is detected
+
+jobs:
+  detect-drift:
+    name: 'Detect drift in ${{ matrix.schema }}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        schema: ${{ github.event.inputs.schema != 'both' && fromJSON(format('["{0}"]', github.event.inputs.schema)) || fromJSON('["site"]') }}
+
+    steps:
+      - name: '📥 Checkout main branch'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: '🔧 Setup Bun'
+        uses: oven-sh/setup-bun@v2
+
+      - name: '📦 Install dependencies'
+        run: bun install --frozen-lockfile
+
+      - name: '🔧 Configure production database (read-only)'
+        run: |
+          if [[ "${{ matrix.schema }}" == "site" ]]; then
+            if [[ -z "${{ secrets.PROD_SITE_DATABASE_URL }}" ]]; then
+              echo "❌ Error: PROD_SITE_DATABASE_URL secret not configured"
+              exit 1
+            fi
+            echo "DATABASE_URL=${{ secrets.PROD_SITE_DATABASE_URL }}" >> $GITHUB_ENV
+            echo "SITE_DATABASE_URL=${{ secrets.PROD_SITE_DATABASE_URL }}" >> $GITHUB_ENV
+            echo "SITE_DIRECT_URL=${{ secrets.PROD_SITE_DIRECT_URL }}" >> $GITHUB_ENV
+          # Add else-if blocks here for additional databases
+          fi
+
+      - name: '🔍 Introspect production database'
+        id: introspect
+        run: |
+          SCHEMA_PATH="src/prisma/${{ matrix.schema }}/schema"
+          TEMP_SCHEMA_PATH="src/prisma/${{ matrix.schema }}/schema-introspected.prisma"
+
+          echo "📊 Introspecting production database..."
+          bunx prisma db pull \
+            --schema=${SCHEMA_PATH} \
+            --print > ${TEMP_SCHEMA_PATH}
+
+          echo "✅ Introspection complete"
+          echo "temp_schema=${TEMP_SCHEMA_PATH}" >> $GITHUB_OUTPUT
+
+      - name: '📊 Compare schemas for drift'
+        id: diff
+        continue-on-error: true
+        run: |
+          COMMITTED_SCHEMA="src/prisma/${{ matrix.schema }}/schema/schema.prisma"
+          INTROSPECTED_SCHEMA="${{ steps.introspect.outputs.temp_schema }}"
+
+          echo "🔍 Comparing committed schema vs. production schema..."
+
+          # Run prisma migrate diff to detect schema differences
+          DIFF_OUTPUT=$(bunx prisma migrate diff \
+            --from-schema-datamodel=${COMMITTED_SCHEMA} \
+            --to-schema-datamodel=${INTROSPECTED_SCHEMA} \
+            --script 2>&1 || echo "DRIFT_DETECTED")
+
+          if [[ "${DIFF_OUTPUT}" == *"No difference detected"* ]] || [[ "${DIFF_OUTPUT}" == *"The schemas are in sync"* ]]; then
+            echo "✅ No drift detected - schemas are in sync"
+            echo "drift_detected=false" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ DRIFT DETECTED - Production schema differs from committed schema"
+            echo "drift_detected=true" >> $GITHUB_OUTPUT
+
+            # Save diff to file for issue creation
+            echo "${DIFF_OUTPUT}" > drift-diff.sql
+            echo "diff_file=drift-diff.sql" >> $GITHUB_OUTPUT
+          fi
+
+      - name: '📋 Create GitHub issue for drift'
+        if: steps.diff.outputs.drift_detected == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const diffContent = fs.readFileSync('drift-diff.sql', 'utf8');
+
+            const issueTitle = `⚠️ Schema Drift Detected: ${{ matrix.schema }} database`;
+            const issueBody = `## Schema Drift Detection Report
+
+            **Database**: \`${{ matrix.schema }}\`
+            **Detection Time**: ${new Date().toISOString()}
+            **Triggered By**: @${{ github.actor }}
+            **Workflow Run**: [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            ---
+
+            ### ⚠️ Warning
+
+            The production database schema does not match the committed schema in the \`main\` branch.
+            This indicates that someone may have made manual changes to the production database.
+
+            ### 🔍 Detected Differences (SQL)
+
+            \`\`\`sql
+            ${diffContent}
+            \`\`\`
+
+            ---
+
+            ### 📝 Recommended Actions
+
+            1. **Investigate**: Determine how and when the production database was modified
+            2. **Document**: Record what changes were made and why
+            3. **Decide**: Choose one of the following options:
+
+               **Option A: Reset to committed schema** (if production changes were accidental)
+               - Create a migration that reverts production to match the committed schema
+               - Review the SQL diff above to ensure no data loss
+               - Test in staging before deploying
+
+               **Option B: Adopt production changes** (if production changes were intentional)
+               - Run \`bun prisma db pull\` locally to generate a new schema
+               - Review the changes carefully
+               - Create a migration: \`bun prisma migrate dev --create-only\`
+               - Commit the new migration to the repository
+
+            4. **Prevent**: Review access controls to prevent unauthorized schema changes
+
+            ### 🚨 Important Notes
+
+            - Do NOT deploy new migrations until drift is resolved
+            - Migration deployments may fail or cause data inconsistencies
+            - Coordinate with the team before making any changes
+
+            ---
+
+            **Generated by**: Prisma Drift Detection Workflow
+            `;
+
+            // Check if similar issue already exists
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['prisma-drift', '${{ matrix.schema }}']
+            });
+
+            if (existingIssues.data.length > 0) {
+              // Update existing issue with new comment
+              const existingIssue = existingIssues.data[0];
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `## New Drift Detection: ${new Date().toISOString()}\n\n${issueBody}`
+              });
+
+              core.info(`Updated existing drift issue #${existingIssue.number}`);
+            } else {
+              // Create new issue
+              const newIssue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issueTitle,
+                body: issueBody,
+                labels: ['prisma-drift', 'high-priority', '${{ matrix.schema }}']
+              });
+
+              core.info(`Created new drift issue #${newIssue.data.number}`);
+            }
+
+      - name: '✅ Report: No drift detected'
+        if: steps.diff.outputs.drift_detected == 'false'
+        run: |
+          echo "✅ SUCCESS: Production schema matches committed schema"
+          echo "📊 Database: ${{ matrix.schema }}"
+          echo "🎯 No action required"
+
+      - name: '❌ Fail workflow if drift detected'
+        if: steps.diff.outputs.drift_detected == 'true'
+        run: |
+          echo "❌ DRIFT DETECTED: See created GitHub issue for details"
+          echo "🔗 Issues: ${{ github.server_url }}/${{ github.repository }}/issues"
+          exit 1

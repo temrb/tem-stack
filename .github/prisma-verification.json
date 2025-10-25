@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "description": "Post-deployment verification configuration for Prisma migrations. Defines critical tables and indexes that must exist after deployment.",
+  "site": {
+    "criticalTables": [
+      "User",
+      "Account",
+      "Session",
+      "VerificationToken",
+      "Token"
+    ],
+    "criticalIndexes": [
+      "Account_userId_idx",
+      "Session_userId_idx",
+      "Token_userId_idx",
+      "User_alias_idx",
+      "User_email_idx",
+      "User_role_idx",
+      "User_tier_idx"
+    ],
+    "criticalConstraints": [
+      "Account_pkey",
+      "Account_userId_key",
+      "Account_provider_providerAccountId_key",
+      "Session_pkey",
+      "Session_sessionToken_key",
+      "Session_userId_key",
+      "Token_pkey",
+      "Token_hashedKey_key",
+      "User_pkey",
+      "User_alias_key",
+      "User_email_key",
+      "VerificationToken_identifier_token_key"
+    ],
+    "criticalEnums": [
+      "UserRole",
+      "UserTier"
+    ]
+  }
+}

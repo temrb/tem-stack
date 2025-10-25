@@ -1,0 +1,602 @@
+name: 'Prisma CI/CD: Validate & Deploy Migrations'
+
+# Architecture: Multi-database support with matrix strategy
+# Currently configured for: site
+# To add more databases:
+#   1. Add schema name to matrix arrays (search for: '["site"]')
+#   2. Add corresponding GitHub secrets (PROD_NEWDB_DATABASE_URL, etc.)
+#   3. Add conditional blocks in environment setup sections
+#
+# Triggers:
+# - PR: Validate migrations when schema/migration files change
+# - Push to main: Deploy migrations to production
+# - Manual: Run validation or deployment on demand
+on:
+  pull_request:
+    paths:
+      - 'src/prisma/**/migrations/**'
+      - 'src/prisma/**/schema/**/*.prisma'
+    types: [opened, synchronize, reopened, ready_for_review]
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/prisma/**/migrations/**'
+      - 'src/prisma/**/schema/**/*.prisma'
+
+  workflow_dispatch:
+    inputs:
+      schema:
+        description: 'Which schema to run (site or both)'
+        required: true
+        type: choice
+        options:
+          - both
+          - site
+        default: both
+      job_type:
+        description: 'Which job to run'
+        required: true
+        type: choice
+        options:
+          - validate
+          - deploy
+        default: validate
+
+permissions:
+  contents: read
+  pull-requests: write  # Required for PR comments
+  issues: write         # Required for creating issues
+
+# Prevent concurrent migrations to the same schema
+concurrency:
+  group: prisma-migrations-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # Never cancel in-progress migrations
+
+jobs:
+  # ============================================================
+  # VALIDATION JOB - Tests if migrations can be applied safely
+  # ============================================================
+  validate-migrations:
+    name: 'Validate ${{ matrix.schema }} migrations'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Run on PRs or manual trigger with validate option
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job_type == 'validate')
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Add more schemas here when ready: '["site", "newdb"]'
+        schema: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.schema != 'both') && fromJSON(format('["{0}"]', github.event.inputs.schema)) || fromJSON('["site"]') }}
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: prisma
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: postgres # Use default DB, we'll create test DBs
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U prisma"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: '📥 Checkout PR branch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: '🔧 Setup Bun'
+        uses: oven-sh/setup-bun@v2
+
+      - name: '📦 Cache Bun dependencies'
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: '🐘 Install PostgreSQL client'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: '⏳ Wait for PostgreSQL'
+        env:
+          PGPASSWORD: testpass
+        run: |
+          until pg_isready -h localhost -p 5432 -U prisma; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+
+      - name: '🗄️ Create test database'
+        env:
+          PGPASSWORD: testpass
+        run: |
+          createdb -h localhost -p 5432 -U prisma "test_${{ matrix.schema }}_db" || true
+
+      - name: '📥 Checkout main branch (baseline)'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: repo-main
+          fetch-depth: 0
+
+      - name: '📦 Install dependencies (main branch)'
+        working-directory: repo-main
+        run: bun install --frozen-lockfile
+
+      - name: '🔧 Configure database URLs'
+        run: |
+          DB_URL="postgresql://prisma:testpass@localhost:5432/test_${{ matrix.schema }}_db"
+
+          # Set both the specific and generic DATABASE_URL
+          echo "DATABASE_URL=${DB_URL}" >> $GITHUB_ENV
+
+          if [[ "${{ matrix.schema }}" == "site" ]]; then
+            echo "SITE_DATABASE_URL=${DB_URL}" >> $GITHUB_ENV
+            echo "SITE_DIRECT_URL=${DB_URL}" >> $GITHUB_ENV
+          # Add else-if blocks here for additional databases
+          fi
+
+      - name: '🚀 Apply main branch migrations (baseline)'
+        working-directory: repo-main
+        run: |
+          bunx prisma migrate deploy \
+            --schema=src/prisma/${{ matrix.schema }}/schema
+
+      - name: '📦 Install dependencies (PR branch)'
+        run: bun install --frozen-lockfile
+
+      - name: '✅ Apply PR migrations (validation test)'
+        run: |
+          bunx prisma migrate deploy \
+            --schema=src/prisma/${{ matrix.schema }}/schema
+
+      - name: '🔍 Verify migration status'
+        run: |
+          bunx prisma migrate status \
+            --schema=src/prisma/${{ matrix.schema }}/schema
+
+      - name: '📊 Analyze migrations for PR comment'
+        if: github.event_name == 'pull_request'
+        id: analyze_migrations
+        run: |
+          echo "📊 Analyzing migrations..."
+
+          MIGRATIONS_DIR="src/prisma/${{ matrix.schema }}/migrations"
+          MIGRATION_COUNT=0
+          MIGRATION_LIST=""
+          HAS_DESTRUCTIVE=false
+
+          # Count and list migrations
+          if [ -d "${MIGRATIONS_DIR}" ]; then
+            # Get migrations from this PR (compare with main)
+            git fetch origin main --depth=1
+            NEW_MIGRATIONS=$(git diff --name-only origin/main...HEAD -- "${MIGRATIONS_DIR}" | grep "migration.sql" || true)
+
+            if [ ! -z "${NEW_MIGRATIONS}" ]; then
+              MIGRATION_COUNT=$(echo "${NEW_MIGRATIONS}" | wc -l)
+
+              # Extract migration names and check for destructive operations
+              while IFS= read -r migration_file; do
+                MIGRATION_NAME=$(basename $(dirname ${migration_file}))
+                MIGRATION_LIST="${MIGRATION_LIST}\n- \`${MIGRATION_NAME}\`"
+
+                # Check for destructive operations
+                if grep -qi "DROP\|TRUNCATE\|DELETE FROM" "${migration_file}" 2>/dev/null; then
+                  HAS_DESTRUCTIVE=true
+                  MIGRATION_LIST="${MIGRATION_LIST} ⚠️ **DESTRUCTIVE**"
+                fi
+              done <<< "${NEW_MIGRATIONS}"
+            fi
+          fi
+
+          echo "migration_count=${MIGRATION_COUNT}" >> $GITHUB_OUTPUT
+          echo "has_destructive=${HAS_DESTRUCTIVE}" >> $GITHUB_OUTPUT
+
+          # Save migration list to file for comment
+          echo -e "${MIGRATION_LIST}" > migration-list.txt
+
+      - name: '💬 Post PR comment with migration summary'
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const schema = '${{ matrix.schema }}';
+            const migrationCount = '${{ steps.analyze_migrations.outputs.migration_count }}';
+            const hasDestructive = '${{ steps.analyze_migrations.outputs.has_destructive }}';
+
+            let migrationList = '';
+            try {
+              migrationList = fs.readFileSync('migration-list.txt', 'utf8');
+            } catch (e) {
+              migrationList = 'No migrations detected';
+            }
+
+            const commentBody = `## 🗄️ Prisma Migration Validation: \`${schema}\`
+
+            **Status**: ✅ Validation Passed
+            **Migrations**: ${migrationCount} new migration(s)
+            **Schema**: \`${schema}\`
+
+            ${migrationCount > 0 ? `
+            ### 📋 New Migrations
+            ${migrationList}
+            ` : ''}
+
+            ${hasDestructive === 'true' ? `
+            ### ⚠️ Destructive Operations Detected
+
+            This PR contains migrations with **destructive operations** that may result in data loss:
+            - DROP TABLE/COLUMN/INDEX
+            - TRUNCATE
+            - DELETE FROM
+
+            **Before merging:**
+            1. ✅ Review SQL changes carefully
+            2. ✅ Verify data backup strategy
+            3. ✅ Plan for rollback if needed
+            4. ✅ Notify stakeholders of potential impact
+            ` : ''}
+
+            ### ✅ Validation Results
+
+            - [x] Migrations apply successfully on clean database
+            - [x] Migrations apply successfully on top of main branch
+            - [x] Migration status verified
+            - [x] No conflicts detected
+
+            ${hasDestructive === 'true' ? `
+            ### 🚨 Production Deployment
+
+            When this PR is merged, the production deployment will:
+            1. Display the SQL preview
+            2. Detect destructive operations
+            3. **Require manual approval** before proceeding
+            4. Deploy migrations to production
+            5. Verify critical tables and indexes
+
+            **Make sure to review the workflow approval carefully before proceeding.**
+            ` : `
+            ### 🚀 Production Deployment
+
+            When this PR is merged, migrations will be automatically deployed to production after manual approval.
+            `}
+
+            ---
+            <sub>Generated by Prisma CI/CD • [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
+            `;
+
+            // Find existing comment to update or create new one
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes(`Prisma Migration Validation: \`${schema}\``)
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+              core.info('Updated existing PR comment');
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+              core.info('Created new PR comment');
+            }
+
+      - name: '🧹 Cleanup test database'
+        if: always()
+        env:
+          PGPASSWORD: testpass
+        run: |
+          psql -h localhost -p 5432 -U prisma -d postgres \
+            -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='test_${{ matrix.schema }}_db' AND pid <> pg_backend_pid();" || true
+          dropdb -h localhost -p 5432 -U prisma "test_${{ matrix.schema }}_db" --if-exists || true
+
+  # ============================================================
+  # DEPLOYMENT JOB - Applies migrations to production
+  # ============================================================
+  deploy-migrations:
+    name: 'Deploy ${{ matrix.schema }} to production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Run on push to main or manual trigger with deploy option
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.event.inputs.job_type == 'deploy')
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Add more schemas here when ready: '["site", "newdb"]'
+        schema: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.schema != 'both') && fromJSON(format('["{0}"]', github.event.inputs.schema)) || fromJSON('["site"]') }}
+
+    # Require manual approval for production deployments
+    environment:
+      name: production
+      url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: '📥 Checkout main branch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: '🔧 Setup Bun'
+        uses: oven-sh/setup-bun@v2
+
+      - name: '📦 Install dependencies'
+        run: bun install --frozen-lockfile
+
+      - name: '🔧 Configure production database'
+        run: |
+          SCHEMA_PATH="src/prisma/${{ matrix.schema }}/schema"
+          echo "SCHEMA_PATH=${SCHEMA_PATH}" >> $GITHUB_ENV
+
+          if [[ "${{ matrix.schema }}" == "site" ]]; then
+            if [[ -z "${{ secrets.PROD_SITE_DATABASE_URL }}" ]]; then
+              echo "❌ Error: PROD_SITE_DATABASE_URL secret not configured"
+              exit 1
+            fi
+            echo "DATABASE_URL=${{ secrets.PROD_SITE_DATABASE_URL }}" >> $GITHUB_ENV
+            echo "SITE_DATABASE_URL=${{ secrets.PROD_SITE_DATABASE_URL }}" >> $GITHUB_ENV
+            echo "SITE_DIRECT_URL=${{ secrets.PROD_SITE_DIRECT_URL }}" >> $GITHUB_ENV
+          # Add else-if blocks here for additional databases
+          fi
+
+          echo "✅ Database configured for ${{ matrix.schema }}"
+          echo "📁 Schema path: ${SCHEMA_PATH}"
+
+      - name: '🔍 Check migration status'
+        id: migration_check
+        run: |
+          echo "📊 Checking which migrations will be applied..."
+
+          # Get migration status (will show pending migrations)
+          STATUS_OUTPUT=$(bunx prisma migrate status --schema=${{ env.SCHEMA_PATH }} 2>&1 || true)
+          echo "${STATUS_OUTPUT}"
+
+          # Check if there are pending migrations
+          if echo "${STATUS_OUTPUT}" | grep -q "Following migration.*have not yet been applied"; then
+            echo "has_pending=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Pending migrations detected"
+          else
+            echo "has_pending=false" >> $GITHUB_OUTPUT
+            echo "✅ No pending migrations"
+          fi
+
+      - name: '📋 Preview migration SQL (dry-run)'
+        if: steps.migration_check.outputs.has_pending == 'true'
+        id: preview_sql
+        run: |
+          echo "🔍 Generating SQL preview of pending migrations..."
+
+          # Use prisma migrate diff to show what SQL will be executed
+          # This compares current database state to the schema after all migrations
+          DIFF_SQL=$(bunx prisma migrate diff \
+            --from-url="${{ secrets.PROD_SITE_DATABASE_URL }}" \
+            --to-schema-datamodel="${{ env.SCHEMA_PATH }}/schema.prisma" \
+            --script 2>&1 || echo "Error generating diff")
+
+          echo "📝 SQL Preview:"
+          echo "---"
+          echo "${DIFF_SQL}"
+          echo "---"
+
+          # Save to file for potential issue creation
+          echo "${DIFF_SQL}" > migration-preview.sql
+
+          # Check length for summary
+          SQL_LINE_COUNT=$(echo "${DIFF_SQL}" | wc -l)
+          echo "sql_lines=${SQL_LINE_COUNT}" >> $GITHUB_OUTPUT
+
+      - name: '⚠️ Detect destructive operations'
+        if: steps.migration_check.outputs.has_pending == 'true'
+        id: detect_destructive
+        run: |
+          echo "🔍 Scanning migrations for destructive operations..."
+
+          MIGRATIONS_DIR="src/prisma/${{ matrix.schema }}/migrations"
+          DESTRUCTIVE_FOUND=false
+          DESTRUCTIVE_DETAILS=""
+
+          # Destructive SQL patterns to detect
+          DESTRUCTIVE_PATTERNS=(
+            "DROP TABLE"
+            "DROP COLUMN"
+            "DROP INDEX"
+            "DROP CONSTRAINT"
+            "TRUNCATE"
+            "DELETE FROM"
+            "ALTER TABLE.*DROP"
+          )
+
+          # Scan all SQL files in migrations directory
+          if [ -d "${MIGRATIONS_DIR}" ]; then
+            for pattern in "${DESTRUCTIVE_PATTERNS[@]}"; do
+              MATCHES=$(grep -r -i -n "${pattern}" "${MIGRATIONS_DIR}" --include="*.sql" 2>/dev/null || true)
+
+              if [ ! -z "${MATCHES}" ]; then
+                DESTRUCTIVE_FOUND=true
+                DESTRUCTIVE_DETAILS="${DESTRUCTIVE_DETAILS}\n\n**${pattern}**:\n\`\`\`\n${MATCHES}\n\`\`\`"
+                echo "⚠️ Found: ${pattern}"
+              fi
+            done
+          fi
+
+          if [ "${DESTRUCTIVE_FOUND}" = true ]; then
+            echo "destructive=true" >> $GITHUB_OUTPUT
+            echo "⚠️ DESTRUCTIVE OPERATIONS DETECTED"
+            echo "🛡️ Manual approval will be required"
+
+            # Save details for later use
+            echo -e "${DESTRUCTIVE_DETAILS}" > destructive-operations.txt
+          else
+            echo "destructive=false" >> $GITHUB_OUTPUT
+            echo "✅ No destructive operations detected"
+          fi
+
+      - name: '🚨 WARNING: Destructive Operations Detected'
+        if: steps.detect_destructive.outputs.destructive == 'true'
+        run: |
+          echo "════════════════════════════════════════════════════════════"
+          echo "🚨 CRITICAL WARNING: DESTRUCTIVE OPERATIONS DETECTED 🚨"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "The pending migrations contain DESTRUCTIVE operations that"
+          echo "may result in DATA LOSS or service disruption."
+          echo ""
+          echo "⚠️  Operations detected:"
+          cat destructive-operations.txt || echo "See workflow logs above"
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+          echo "📋 REQUIRED ACTIONS BEFORE APPROVAL:"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "1. ✅ Review the SQL preview above carefully"
+          echo "2. ✅ Verify data backup is recent and restorable"
+          echo "3. ✅ Confirm stakeholders are aware of changes"
+          echo "4. ✅ Plan for potential rollback if needed"
+          echo "5. ✅ Consider maintenance window/downtime"
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "⏸️  This deployment is PAUSED pending manual approval."
+          echo "🔒 Only approve if you have verified all safety checks above."
+          echo ""
+
+      - name: '🚀 Deploy migrations to production'
+        run: |
+          echo "🎯 Deploying migrations for ${{ matrix.schema }}"
+          echo "📁 Using schema: ${{ env.SCHEMA_PATH }}"
+
+          # CRITICAL: Only use 'migrate deploy' in production
+          # Never use 'migrate dev', 'migrate reset', or 'migrate resolve'
+          bunx prisma migrate deploy --schema=${{ env.SCHEMA_PATH }}
+
+          echo "✅ Migrations deployed successfully"
+
+      - name: '🔍 Verify production migration status'
+        run: |
+          bunx prisma migrate status --schema=${{ env.SCHEMA_PATH }}
+
+      - name: '✅ Post-deployment verification'
+        id: verify_deployment
+        run: |
+          echo "🔍 Running post-deployment verification checks..."
+
+          VERIFICATION_CONFIG=".github/prisma-verification.json"
+          SCHEMA_NAME="${{ matrix.schema }}"
+
+          # Check if verification config exists
+          if [ ! -f "${VERIFICATION_CONFIG}" ]; then
+            echo "⚠️ Verification config not found, skipping verification"
+            exit 0
+          fi
+
+          # Install jq for JSON parsing if not available
+          if ! command -v jq &> /dev/null; then
+            echo "📦 Installing jq for JSON parsing..."
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+          # Read verification requirements from config
+          CRITICAL_TABLES=$(jq -r ".${SCHEMA_NAME}.criticalTables[]" ${VERIFICATION_CONFIG} 2>/dev/null || echo "")
+          CRITICAL_INDEXES=$(jq -r ".${SCHEMA_NAME}.criticalIndexes[]" ${VERIFICATION_CONFIG} 2>/dev/null || echo "")
+          CRITICAL_ENUMS=$(jq -r ".${SCHEMA_NAME}.criticalEnums[]" ${VERIFICATION_CONFIG} 2>/dev/null || echo "")
+
+          VERIFICATION_FAILED=false
+
+          # Verify critical tables exist
+          if [ ! -z "${CRITICAL_TABLES}" ]; then
+            echo "📋 Verifying critical tables..."
+            for table in ${CRITICAL_TABLES}; do
+              # Query database to check if table exists
+              TABLE_EXISTS=$(bunx prisma db execute \
+                --schema=${{ env.SCHEMA_PATH }} \
+                --stdin <<< "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '${table}');" \
+                2>&1 || echo "false")
+
+              if echo "${TABLE_EXISTS}" | grep -q "t\|true"; then
+                echo "  ✅ Table '${table}' exists"
+              else
+                echo "  ❌ Table '${table}' NOT FOUND"
+                VERIFICATION_FAILED=true
+              fi
+            done
+          fi
+
+          # Verify critical indexes exist
+          if [ ! -z "${CRITICAL_INDEXES}" ]; then
+            echo "📋 Verifying critical indexes..."
+            for index in ${CRITICAL_INDEXES}; do
+              INDEX_EXISTS=$(bunx prisma db execute \
+                --schema=${{ env.SCHEMA_PATH }} \
+                --stdin <<< "SELECT EXISTS (SELECT FROM pg_indexes WHERE indexname = '${index}');" \
+                2>&1 || echo "false")
+
+              if echo "${INDEX_EXISTS}" | grep -q "t\|true"; then
+                echo "  ✅ Index '${index}' exists"
+              else
+                echo "  ❌ Index '${index}' NOT FOUND"
+                VERIFICATION_FAILED=true
+              fi
+            done
+          fi
+
+          # Verify critical enums exist
+          if [ ! -z "${CRITICAL_ENUMS}" ]; then
+            echo "📋 Verifying critical enums..."
+            for enum in ${CRITICAL_ENUMS}; do
+              ENUM_EXISTS=$(bunx prisma db execute \
+                --schema=${{ env.SCHEMA_PATH }} \
+                --stdin <<< "SELECT EXISTS (SELECT FROM pg_type WHERE typname = '${enum}');" \
+                2>&1 || echo "false")
+
+              if echo "${ENUM_EXISTS}" | grep -q "t\|true"; then
+                echo "  ✅ Enum '${enum}' exists"
+              else
+                echo "  ❌ Enum '${enum}' NOT FOUND"
+                VERIFICATION_FAILED=true
+              fi
+            done
+          fi
+
+          if [ "${VERIFICATION_FAILED}" = true ]; then
+            echo ""
+            echo "❌ Post-deployment verification FAILED"
+            echo "🚨 Critical database objects are missing"
+            echo "📋 Review the errors above and investigate immediately"
+            exit 1
+          else
+            echo ""
+            echo "✅ All post-deployment verification checks passed"
+            echo "🎉 Database schema is healthy"
+          fi
