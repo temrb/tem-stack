@@ -1,5 +1,6 @@
 import type { ComponentType, LazyExoticComponent } from 'react';
 import * as settingsModals from '@/features/settings/modals';
+
 // Import other feature modals here as they are created
 // import * as jobModals from '@/features/jobs/modals';
 // import * as profileModals from '@/features/profile/modals';
@@ -16,10 +17,10 @@ import * as settingsModals from '@/features/settings/modals';
  * - Scalable architecture (add new features without modifying this file much)
  */
 export const modalRegistry = {
-	...settingsModals,
-	// Spread other feature modals here as they're added
-	// ...jobModals,
-	// ...profileModals,
+    ...settingsModals,
+    // Spread other feature modals here as they're added
+    // ...jobModals,
+    // ...profileModals,
 } as const;
 
 /**
@@ -42,11 +43,11 @@ export type ModalKey = keyof typeof modalRegistry;
  * }
  */
 export type ModalPropsMap = {
-	[K in ModalKey]: (typeof modalRegistry)[K] extends {
-		Component: LazyExoticComponent<ComponentType<infer P>>;
-	}
-		? P extends Record<string, unknown>
-			? P
-			: Record<string, never>
-		: never;
+    [K in ModalKey]: (typeof modalRegistry)[K] extends {
+        Component: LazyExoticComponent<ComponentType<infer P>>;
+    }
+    ? P extends Record<string, unknown>
+    ? P
+    : Record<string, never>
+    : never;
 };

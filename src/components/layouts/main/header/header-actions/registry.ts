@@ -1,5 +1,6 @@
 import type { ComponentType, LazyExoticComponent } from 'react';
 import * as settingsHeaderActions from '@/features/settings/header-actions';
+
 // Import other feature header actions here as they are created
 // import * as jobHeaderActions from '@/features/jobs/header-actions';
 // import * as profileHeaderActions from '@/features/profile/header-actions';
@@ -17,10 +18,10 @@ import * as settingsHeaderActions from '@/features/settings/header-actions';
  * - Dynamic route-based rendering
  */
 export const headerActionRegistry = {
-	...settingsHeaderActions,
-	// Spread other feature header actions here as they're added
-	// ...jobHeaderActions,
-	// ...profileHeaderActions,
+    ...settingsHeaderActions,
+    // Spread other feature header actions here as they're added
+    // ...jobHeaderActions,
+    // ...profileHeaderActions,
 } as const;
 
 /**
@@ -37,11 +38,11 @@ export type HeaderActionKey = keyof typeof headerActionRegistry;
  * Component definition, ensuring full type safety.
  */
 export type HeaderActionPropsMap = {
-	[K in HeaderActionKey]: (typeof headerActionRegistry)[K] extends {
-		Component: LazyExoticComponent<ComponentType<infer P>>;
-	}
-		? P extends Record<string, unknown>
-			? P
-			: Record<string, never>
-		: never;
+    [K in HeaderActionKey]: (typeof headerActionRegistry)[K] extends {
+        Component: LazyExoticComponent<ComponentType<infer P>>;
+    }
+    ? P extends Record<string, unknown>
+    ? P
+    : Record<string, never>
+    : never;
 };

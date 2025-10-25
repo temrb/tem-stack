@@ -1,9 +1,8 @@
 'use client';
 import { Button } from '@/components/ui/button';
-import type { Route } from '@/lib/core/types/routes';
-import { routes } from '@/routes';
 import { cn } from '@/lib/core/utils';
 import { createRouteMatcher } from '@/lib/proxy/utils/route-matcher';
+import { routes } from '@/routes';
 import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
 import { usePathname } from 'next/navigation';
 import { LuPanelLeftOpen } from 'react-icons/lu';
@@ -42,9 +41,7 @@ const Header = () => {
 					onClick={() => setMenubar(!menubar)}
 					disabled={menubar}
 					aria-label='Open menu'
-					icon={
-						<LuPanelLeftOpen className='size-4' />
-					}
+					icon={<LuPanelLeftOpen className='size-4' />}
 				/>
 				{currentRoute && (
 					<h1 className='truncate pr-2 text-lg font-medium md:text-xl'>
