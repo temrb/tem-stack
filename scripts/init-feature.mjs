@@ -3,7 +3,7 @@
 /**
  * Feature Scaffolding CLI Script
  *
- * Creates a new feature module in src/features/ with the following structure:
+ * Initializes a new feature module in src/features/ with the following structure:
  * - api/ - tRPC routers and service layer
  * - components/ - React components
  * - lib/ - Types and validation schemas
