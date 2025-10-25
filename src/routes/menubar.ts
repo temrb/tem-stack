@@ -1,5 +1,5 @@
 import type { Route } from '@/lib/core/types/routes';
-import { LuSearch } from 'react-icons/lu';
+import { LuNotebook, LuSearch } from 'react-icons/lu';
 
 /**
  * Sidebar feature routes - Main product features accessible from sidebar
@@ -7,12 +7,12 @@ import { LuSearch } from 'react-icons/lu';
  */
 const menubarRoutes: Route[] = [
 	{
-		path: '/feature-1',
-		displayPath: '/feature-1',
-		displayName: 'Feature One',
+		path: '/notes',
+		displayPath: '/notes',
+		displayName: 'Notes',
 		type: 'public',
 		category: 'feature',
-		icon: LuSearch,
+		icon: LuNotebook,
 	},
 	{
 		path: '/feature-2',
