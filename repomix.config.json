@@ -27,7 +27,7 @@
 			"includeLogsCount": 50
 		}
 	},
-	"include": ["src/features/settings"],
+	"include": ["src/features/settings", ".claude/CLAUDE.md"],
 	"ignore": {
 		"useGitignore": true,
 		"useDefaultPatterns": true,
