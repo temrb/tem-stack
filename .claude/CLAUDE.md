@@ -68,6 +68,70 @@ npm run db:site:resolve-applied -- MIGRATION_NAME     # Mark migration as applie
 npm run db:site:resolve-rollback -- MIGRATION_NAME    # Mark migration as rolled back
 ```
 
+## Feature Scaffolding
+
+The repository includes a powerful CLI tool for creating new features with proper structure and automatic registry integration.
+
+### Creating Features
+
+```bash
+npm run create                              # Interactive mode (recommended)
+npm run create -- my-feature                # Quick create with positional argument
+npm run create -- --name=my-feature         # Using --name flag
+npm run create -- -n my-feature             # Using -n short flag
+```
+
+### Interactive Module Selection
+
+When you run `npm run create`, you'll be prompted to select which modules to generate:
+
+- **API** (tRPC routes and services) - Creates:
+  - `api/index.ts` - Feature router that exports to root
+  - `api/{feature-name}.ts` - tRPC procedures
+  - `api/services/{feature-name}.service.ts` - Business logic layer
+  - Auto-updates `src/trpc/server/api/site/root.ts`
+
+- **Components** (React components) - Creates:
+  - `components/{feature-name}-component.tsx` - Example component
+
+- **Lib** (types and validation) - Creates:
+  - `lib/types/index.ts` - TypeScript type definitions
+  - `lib/validation/{feature-name}.z.ts` - Zod validation schemas
+
+- **Pages** (reusable page sections) - Creates:
+  - `pages/index.tsx` - Page component for composition
+
+- **Header Actions** (dynamic header content) - Creates:
+  - `header-actions.ts` - Header action definitions
+  - `components/{feature-name}-header-action.tsx` - Header component
+  - Auto-updates `src/components/layouts/main/header/header-actions/registry.ts`
+
+- **Modals** (dialogs/drawers) - Creates:
+  - `modals.ts` - Modal definitions
+  - `components/modals/example-{feature-name}-modal.tsx` - Example modal
+  - Auto-updates `src/modals/registry.ts`
+
+### What Gets Auto-Generated
+
+The scaffolding tool automatically:
+1. Creates the feature directory at `src/features/{feature-name}/`
+2. Generates boilerplate code with proper imports and type safety
+3. Updates registry files (tRPC root, modals registry, header actions registry)
+4. Uses proper naming conventions (kebab-case for files, PascalCase for components, camelCase for functions)
+5. Includes example implementations you can customize
+
+### Removing Features
+
+```bash
+npm run create -- --remove my-feature       # Remove feature and update registries
+npm run create -- -r my-feature             # Short form
+```
+
+The removal process:
+1. Removes imports and references from all registries
+2. Prompts for confirmation before deleting the directory
+3. Cleans up tRPC routes, modal definitions, and header actions
+
 ## Architecture
 
 ### Prisma Schema Organization
