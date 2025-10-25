@@ -47,3 +47,5 @@ Once the user confirms that the scaffolding is complete, you will implement the 
 3. Implement the feature logic, components, types, and API endpoints as required.
 4. Ensure your implementation follows the conventions and architecture described in `CLAUDE.md`.
 5. Provide the complete code for each new or modified file.
+
+Utilize `.claude/agents` and `.claude/commands` as needed to assist with code generation, testing, and validation.
