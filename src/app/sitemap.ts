@@ -22,22 +22,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
 			priority: 1.0,
 		},
 		{
-			url: `${baseUrl}/job-search`,
-			lastModified: currentDate,
-			changeFrequency: 'daily',
-			priority: 0.9,
-		},
-		{
 			url: `${baseUrl}/get-started`,
 			lastModified: currentDate,
 			changeFrequency: 'weekly',
 			priority: 0.8,
-		},
-		{
-			url: `${baseUrl}/track`,
-			lastModified: currentDate,
-			changeFrequency: 'weekly',
-			priority: 0.7,
 		},
 		{
 			url: `${baseUrl}/settings`,
