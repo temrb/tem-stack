@@ -4,19 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Tech Stack Overview
 
-This is a Next.js 16 application built with the T3 Stack architecture:
-
 - **Framework**: Next.js 16 with App Router, React 19, TypeScript 5.8
 - **Styling**: TailwindCSS with Radix UI components
 - **State Management**: Zustand with Immer for client state
 - **API Layer**: tRPC 11 for end-to-end type-safe APIs
 - **Database**: PostgreSQL with Prisma 6.18 (using @prisma/adapter-pg for connection pooling)
-- **Authentication**: NextAuth.js 4.24 with Google OAuth
+- **Authentication**: Better Auth 1.3 with Google OAuth
 - **Caching**: Upstash Redis for rate limiting and caching
 - **Validation**: Zod 4 for runtime type validation
 - **AI SDK**: Vercel AI SDK 5 (available but optional)
 
 ## Development Commands
+
+**Package Manager**: The project uses Bun (see `bun.lock`) but npm commands work with any package manager (npm, bun, pnpm, yarn).
 
 ### Core Development
 
@@ -27,6 +27,8 @@ npm run lint             # Run ESLint
 npm run format           # Auto-fix with ESLint and Prettier
 npm run format:check     # Check formatting without fixing
 npm run analyze          # Analyze bundle size
+npm run ts-check         # TypeScript type checking without emitting files
+npm run repomix          # Generate codebase context file for AI tools
 ```
 
 ### Database Operations
@@ -68,6 +70,13 @@ npm run db:site:resolve-applied -- MIGRATION_NAME     # Mark migration as applie
 npm run db:site:resolve-rollback -- MIGRATION_NAME    # Mark migration as rolled back
 ```
 
+### CI/CD Commands
+
+```bash
+npm run ci:migrate       # Apply production migrations
+npm run ci:validate      # Check migration status and run build
+```
+
 ## Feature Scaffolding
 
 The repository includes a powerful CLI tool for creating new features with proper structure and automatic registry integration.
@@ -86,34 +95,35 @@ npm run create -- -n my-feature             # Using -n short flag
 When you run `npm run create`, you'll be prompted to select which modules to generate:
 
 - **API** (tRPC routes and services) - Creates:
-  - `api/index.ts` - Feature router that exports to root
-  - `api/{feature-name}.ts` - tRPC procedures
-  - `api/services/{feature-name}.service.ts` - Business logic layer
-  - Auto-updates `src/trpc/server/api/site/root.ts`
+    - `api/index.ts` - Feature router that exports to root
+    - `api/{feature-name}.ts` - tRPC procedures
+    - `api/services/{feature-name}.service.ts` - Business logic layer
+    - Auto-updates `src/trpc/server/api/site/root.ts`
 
 - **Components** (React components) - Creates:
-  - `components/{feature-name}-component.tsx` - Example component
+    - `components/{feature-name}-component.tsx` - Example component
 
 - **Lib** (types and validation) - Creates:
-  - `lib/types/index.ts` - TypeScript type definitions
-  - `lib/validation/{feature-name}.z.ts` - Zod validation schemas
+    - `lib/types/index.ts` - TypeScript type definitions
+    - `lib/validation/{feature-name}.z.ts` - Zod validation schemas
 
 - **Pages** (reusable page sections) - Creates:
-  - `pages/index.tsx` - Page component for composition
+    - `pages/index.tsx` - Page component for composition
 
 - **Header Actions** (dynamic header content) - Creates:
-  - `header-actions.ts` - Header action definitions
-  - `components/{feature-name}-header-action.tsx` - Header component
-  - Auto-updates `src/components/layouts/main/header/header-actions/registry.ts`
+    - `header-actions.ts` - Header action definitions
+    - `components/{feature-name}-header-action.tsx` - Header component
+    - Auto-updates `src/components/layouts/main/header/header-actions/registry.ts`
 
 - **Modals** (dialogs/drawers) - Creates:
-  - `modals.ts` - Modal definitions
-  - `components/modals/example-{feature-name}-modal.tsx` - Example modal
-  - Auto-updates `src/modals/registry.ts`
+    - `modals.ts` - Modal definitions
+    - `components/modals/example-{feature-name}-modal.tsx` - Example modal
+    - Auto-updates `src/modals/registry.ts`
 
 ### What Gets Auto-Generated
 
 The scaffolding tool automatically:
+
 1. Creates the feature directory at `src/features/{feature-name}/`
 2. Generates boilerplate code with proper imports and type safety
 3. Updates registry files (tRPC root, modals registry, header actions registry)
@@ -128,6 +138,7 @@ npm run create -- -r my-feature             # Short form
 ```
 
 The removal process:
+
 1. Removes imports and references from all registries
 2. Prompts for confirmation before deleting the directory
 3. Cleans up tRPC routes, modal definitions, and header actions
@@ -156,23 +167,26 @@ The tRPC API follows a feature-based structure:
 
 ### Middleware (Next.js Proxy)
 
-The application uses a custom middleware system in `src/lib/proxy/app.ts`:
+The application uses a custom middleware system:
 
-- Handles authentication state and routing
-- Validates JWT sessions for protected routes
-- Manages admin route access (dev-only)
+- Entry point: `src/proxy.ts` (Next.js middleware file) calls `AppProxy` from `src/lib/proxy`
+- Core logic: `src/lib/proxy/app.ts` handles authentication state and routing
+- Validates sessions for protected routes via `validateProxySession()`
+- Manages admin route access (dev-only, restricted to ADMIN role)
 - Redirects based on user onboarding state
-- Session validation via `validateProxySession()` for protected routes
+- Matcher excludes: `/api/`, `/_next/`, `/_proxy/`, `/_static`, `/_vercel`, and static files
 
 ### Authentication Flow
 
-NextAuth.js configuration in `src/lib/auth/options.ts`:
+Better Auth 1.3 configuration in `src/lib/auth/auth.ts`:
 
-- JWT strategy with custom session callbacks
-- Google OAuth provider (extensible for more providers)
-- Custom fields: `role`, `alias`, `onboardingCompleted`
-- Session security handled in `src/lib/auth/session-security.ts`
-- Client-side session handling in `src/lib/auth/client-session-handler.ts`
+- Prisma adapter with PostgreSQL provider
+- Google OAuth social provider (extensible for more providers)
+- Custom user fields: `role`, `alias`, `onboardingCompleted`
+- Session management: 7-day expiry with 1-day update age, 5-minute cookie cache
+- Client setup: `src/lib/auth/auth-client.ts` exports `useSession`, `signIn`, `signOut`, `getSession`
+- API routes: `src/app/api/auth/[...all]/route.ts` handles all auth endpoints
+- Session security: `src/lib/auth/session-security.ts`
 
 ### Zustand State Management
 
@@ -299,6 +313,16 @@ Metadata utilities in `src/lib/metadata/`:
 - Vercel Analytics: Automatically integrated
 - Scripts in `src/scripts/analytics.tsx`
 
+## Custom Slash Commands
+
+The repository includes custom Claude Code slash commands in `.claude/commands/`:
+
+- `/create [feature-name] [path/to/instructions.md]` - Creates and implements a feature end-to-end using the scaffolding script
+- `/scrutinize [path_to_parent_component] [instructions...]` - Recursively analyzes a component/directory and its children
+- `/use-prd [path_to_prd] [path_to_docs]` - Analyzes codebase against PRD and docs for alignment
+- `/update-prd [path_to_current_prd] [pull_request_number]` - Updates PRD by analyzing PR changes
+- `/fix [path_to_logs] [path_to_instructions] [path_to_prd] [path_to_docs]` - Performs root cause analysis and implements fixes
+
 ## Port Configuration
 
 - **Dev Server**: <http://localhost:4242>
@@ -306,8 +330,9 @@ Metadata utilities in `src/lib/metadata/`:
 
 ## Important Notes
 
-- Admin routes (`/admin/*`) are only accessible in development mode
+- Admin routes (`/admin/*`) are only accessible in development mode and restricted to ADMIN role
 - The app uses standalone output mode for Docker deployments
 - TailwindCSS uses the `tailwind-merge` utility for className composition
 - Images use Next.js Image component with remote pattern allowlist
 - Security headers configured in `next.config.js`
+- Session tokens are validated on protected routes via the proxy middleware

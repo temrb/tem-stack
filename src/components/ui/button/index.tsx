@@ -8,7 +8,7 @@ import {
 import { validateAriaProps } from '@/lib/core/types/aria-utils';
 import { cn } from '@/lib/core/utils';
 import { Slot } from '@radix-ui/react-slot';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/lib/auth/auth-client';
 import { useLinkStatus } from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -184,11 +184,11 @@ const Button = (
 
 	validateAriaProps(restProps, 'Button');
 
-	const { status } = useSession();
+	const { data: session, isPending } = useSession();
 	const router = useRouter();
 	const pathname = usePathname();
 	const { isMobile } = useMediaQuery();
-	const isAuthenticated = status === 'authenticated';
+	const isAuthenticated = !isPending && !!session;
 	const [isAuthRedirecting, setIsAuthRedirecting] = React.useState(false);
 	const isDisabled = disabled || loading || isAuthRedirecting;
 

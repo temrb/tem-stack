@@ -23,9 +23,10 @@ type MenuItem =
 interface NavMenuProps {
 	trigger: ReactNode;
 	items: MenuItem[];
+	onItemClick?: () => void;
 }
 
-const NavMenu = ({ trigger, items }: NavMenuProps) => {
+const NavMenu = ({ trigger, items, onItemClick }: NavMenuProps) => {
 	const router = useRouter();
 
 	const handleItemClick = (item: MenuItem) => {
@@ -34,6 +35,7 @@ const NavMenu = ({ trigger, items }: NavMenuProps) => {
 		} else if (item.type === 'button') {
 			item.onClick();
 		}
+		onItemClick?.();
 	};
 
 	return (

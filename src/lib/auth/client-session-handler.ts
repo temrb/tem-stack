@@ -5,11 +5,11 @@
  * When a session invalidation error is detected, it automatically logs out the user
  * and redirects them to the appropriate login page.
  *
- * This is CLIENT-SIDE ONLY - uses browser APIs and next-auth/react
+ * This is CLIENT-SIDE ONLY - uses browser APIs and Better Auth client
  */
 
+import { signOut } from '@/lib/auth/auth-client';
 import { TRPCClientError } from '@trpc/client';
-import { signOut } from 'next-auth/react';
 
 /**
  * Handles tRPC session-related errors on the client side
@@ -34,21 +34,24 @@ export function handleTRPCSessionError(error: unknown): void {
 		// Extract redirect URL from the error, fallback to default
 		const redirectUrl = error.data.cause.redirectUrl || '/get-started';
 
-		// Sign out the user (clears NextAuth session)
-		signOut({ redirect: false })
-			.then(() => {
-				// Perform hard navigation to ensure clean state
-				if (typeof window !== 'undefined') {
-					window.location.href = redirectUrl;
-				}
-			})
-			.catch((signOutError) => {
-				console.error('Error during sign out:', signOutError);
-				// Even if sign out fails, still redirect to login
-				if (typeof window !== 'undefined') {
-					window.location.href = '/get-started';
-				}
-			});
+		// Sign out the user (clears Better Auth session)
+		signOut({
+			fetchOptions: {
+				onSuccess: () => {
+					// Perform hard navigation to ensure clean state
+					if (typeof window !== 'undefined') {
+						window.location.href = redirectUrl;
+					}
+				},
+				onError: (signOutError) => {
+					console.error('Error during sign out:', signOutError);
+					// Even if sign out fails, still redirect to login
+					if (typeof window !== 'undefined') {
+						window.location.href = '/get-started';
+					}
+				},
+			},
+		});
 	}
 }
 

@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Socials } from '@/lib/assets/svg/socials';
-import { signIn } from 'next-auth/react';
+import { signIn } from '@/lib/auth/auth-client';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
@@ -20,11 +20,16 @@ const Auth = () => {
 						disabled={loading}
 						className='h-14 w-full'
 						variant='secondary'
-						onClick={() => {
+						onClick={async () => {
 							setLoading(true);
-							signIn('google', {
-								callbackUrl: redirectTo ? `${redirectTo}` : '/',
-							}).then(() => setLoading(false));
+							try {
+								await signIn.social({
+									provider: 'google',
+									callbackURL: redirectTo || '/',
+								});
+							} finally {
+								setLoading(false);
+							}
 						}}
 						aria-label='Continue with Google'
 					>

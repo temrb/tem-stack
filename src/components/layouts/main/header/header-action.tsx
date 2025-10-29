@@ -2,14 +2,14 @@
 import SuspenseWrapper from '@/components/suspense-wrapper';
 import Logo from '@/components/ui/logo';
 import { normalizeRouteMatcher } from '@/lib/ui/header-actions';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/lib/auth/auth-client';
 import { usePathname } from 'next/navigation';
 import ActionLayout from './header-actions/action-layout';
 import { headerActionRegistry } from './header-actions/registry';
 
 const HeaderAction = () => {
-	const session = useSession();
-	const authenticated = session.status === 'authenticated';
+	const { data: session, isPending } = useSession();
+	const authenticated = !isPending && !!session;
 	const pathname = usePathname();
 
 	if (pathname.startsWith('/get-started')) {

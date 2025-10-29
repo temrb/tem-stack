@@ -1,13 +1,36 @@
-import env from '@/env';
-import type { JWT } from 'next-auth/jwt';
-import { getToken } from 'next-auth/jwt';
+import { auth } from '@/lib/auth/auth';
 import type { NextRequest } from 'next/server';
 
-export async function getUserViaToken(req: NextRequest): Promise<JWT | null> {
-	const session = await getToken({
-		req,
-		secret: env.NEXTAUTH_SECRET,
-	});
+interface UserToken {
+	sub: string;
+	email: string;
+	name?: string;
+	role?: string;
+	alias?: string;
+	onboardingCompleted?: boolean;
+}
 
-	return session;
+export async function getUserViaToken(
+	req: NextRequest,
+): Promise<UserToken | null> {
+	try {
+		const session = await auth.api.getSession({
+			headers: req.headers,
+		});
+
+		if (!session) {
+			return null;
+		}
+
+		return {
+			sub: session.user.id,
+			email: session.user.email,
+			name: session.user.name || undefined,
+			role: session.user.role ?? undefined,
+			alias: session.user.alias ?? undefined,
+			onboardingCompleted: session.user.onboardingCompleted ?? undefined,
+		};
+	} catch {
+		return null;
+	}
 }

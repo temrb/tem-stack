@@ -122,14 +122,12 @@ export function handleInvalidSession(
 		new URL(result.redirectUrl, req.url),
 	);
 
-	// Clear NextAuth session cookies
+	// Clear Better Auth session cookies
 	const cookiesToClear = [
-		'next-auth.session-token',
-		'__Secure-next-auth.session-token',
-		'next-auth.csrf-token',
-		'__Host-next-auth.csrf-token',
-		'next-auth.callback-url',
-		'__Secure-next-auth.callback-url',
+		'better-auth.session_token',
+		'__Secure-better-auth.session_token',
+		'better-auth.session_data',
+		'__Secure-better-auth.session_data',
 	];
 
 	cookiesToClear.forEach((cookieName) => {

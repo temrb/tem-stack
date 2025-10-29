@@ -17,7 +17,7 @@ export const getUserFromContext = (ctx: Context) => {
  * @param user The user object to check
  * @returns true if the user is an admin, false otherwise
  */
-export const isAdmin = (user: Context['session']['user'] | null): boolean => {
+export const isAdmin = (user: NonNullable<Context['session']>['user'] | null): boolean => {
 	if (!user) return false;
 
 	// Check if user has admin role

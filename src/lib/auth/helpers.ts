@@ -1,4 +1,4 @@
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/lib/auth/auth-client';
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 
@@ -17,12 +17,12 @@ import { useCallback } from 'react';
  * });
  */
 export const useAuthCheck = () => {
-	const { status } = useSession();
+	const { data: session, isPending } = useSession();
 	const router = useRouter();
 
 	return useCallback(
 		(action: () => void) => {
-			if (status !== 'authenticated') {
+			if (!session || isPending) {
 				const url = new URL('/get-started', window.location.origin);
 				url.searchParams.set('redirectTo', window.location.pathname);
 				router.push(url.toString());
@@ -30,6 +30,6 @@ export const useAuthCheck = () => {
 			}
 			action();
 		},
-		[status, router],
+		[session, isPending, router],
 	);
 };

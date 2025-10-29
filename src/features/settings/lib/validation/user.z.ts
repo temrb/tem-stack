@@ -8,10 +8,7 @@ export const DeleteAccountFormSchema = z.object({
 		.refine((value) => value.toLowerCase() === 'confirm delete account', {
 			message: 'Please type exactly "confirm delete account"',
 		}),
-	email: z.preprocess(
-		(val) => (typeof val === 'string' ? val.trim() : val),
-		z.email(),
-	),
+	email: z.string().trim().email('Please enter a valid email address'),
 });
 
 export const UpdateProfileFormSchema = z.object({

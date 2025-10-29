@@ -20,7 +20,8 @@ import ModalLayout from '@/modals/modal-layout';
 import { api } from '@/trpc/react';
 import { useModalStore } from '@/zustand/ui/useModalStore';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { signOut, useSession } from 'next-auth/react';
+import { useSession, signOut } from '@/lib/auth/auth-client';
+import { useRouter } from 'next/navigation';
 import React, { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
@@ -28,6 +29,7 @@ import type { z } from 'zod';
 const DeleteAccountModal: React.FC = () => {
 	const { data: session } = useSession();
 	const { hide } = useModalStore();
+	const router = useRouter();
 
 	const [isDeleting, setIsDeleting] = useState(false);
 
@@ -44,7 +46,15 @@ const DeleteAccountModal: React.FC = () => {
 		});
 
 	const handleSignOut = useCallback(async () => {
-		const { error } = await tryCatch(signOut({ callbackUrl: '/' }));
+		const { error } = await tryCatch(
+			signOut({
+				fetchOptions: {
+					onSuccess: () => {
+						router.push('/');
+					},
+				},
+			}),
+		);
 
 		if (error) {
 			console.error('Sign out failed', error);
@@ -53,7 +63,7 @@ const DeleteAccountModal: React.FC = () => {
 				'Unable to sign out. Please close the browser.',
 			);
 		}
-	}, []);
+	}, [router]);
 
 	const onSubmit = useCallback(
 		async (values: z.infer<typeof DeleteAccountFormSchema>) => {
