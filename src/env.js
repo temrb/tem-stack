@@ -13,18 +13,15 @@ const env = createEnv({
 			.enum(['development', 'test', 'production'])
 			.default('development'),
 
-		// Authentication (NextAuth.js)
-		NEXTAUTH_SECRET:
-			process.env.NODE_ENV === 'production'
-				? z.string()
-				: z.string().optional(),
-		NEXTAUTH_URL: z.preprocess(
-			// This makes Vercel deployments not fail if you don't set NEXTAUTH_URL
-			// Since NextAuth.js automatically uses the VERCEL_URL if present.
+		// Authentication (Better Auth)
+		BETTER_AUTH_SECRET: z.string().min(32),
+		BETTER_AUTH_URL: z.preprocess(
+			// This makes Vercel deployments not fail if you don't set BETTER_AUTH_URL
+			// Better Auth automatically uses the VERCEL_URL if present.
 			(str) => process.env.VERCEL_URL ?? str,
 			// VERCEL_URL doesn't include `https` so it cant be validated as a URL
-			process.env.VERCEL ? z.string() : z.url(),
-		),
+			process.env.VERCEL ? z.string() : z.url().optional(),
+		).optional(),
 
 		// Cache (Upstash Redis)
 		UPSTASH_REDIS_REST_URL: z.url(),
@@ -72,8 +69,8 @@ const env = createEnv({
 		NODE_ENV: process.env.NODE_ENV,
 
 		// Authentication
-		NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-		NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+		BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+		BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
 
 		// Cache
 		UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,

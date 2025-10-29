@@ -3,18 +3,28 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import SupportButton from '@/components/ui/button/support-button';
 import NavMenu from '@/components/ui/nav-menu';
-import { signOut, useSession } from 'next-auth/react';
+import { signOut, useSession } from '@/lib/auth/auth-client';
+import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useRouter } from 'next/navigation';
 import { LuBolt, LuLogOut, LuShield } from 'react-icons/lu';
 
 const AuthAction = () => {
-	const session = useSession();
-	const admin = session.data?.user?.role === 'ADMIN';
+	const { data: session, isPending } = useSession();
+	const router = useRouter();
+	const { setMenubar } = useLayoutStore();
+	const admin = session?.user?.role === 'ADMIN';
 
-	const handleSignOut = () => {
-		signOut({ callbackUrl: '/' });
+	const handleSignOut = async () => {
+		await signOut({
+			fetchOptions: {
+				onSuccess: () => {
+					router.push('/');
+				},
+			},
+		});
 	};
 
-	if (session.status === 'authenticated') {
+	if (!isPending && session) {
 		return (
 			<>
 				<NavMenu
@@ -26,20 +36,20 @@ const AuthAction = () => {
 							<Avatar className='size-7'>
 								<AvatarImage
 									src={
-										session?.data?.user?.image ??
+										session?.user?.image ??
 										'/default-avatar.png'
 									}
 									referrerPolicy='no-referrer'
 									className='pointer-events-none'
 									alt={
-										session?.data?.user?.name
-											? `${session.data.user.name}'s avatar`
+										session?.user?.name
+											? `${session.user.name}'s avatar`
 											: 'User avatar'
 									}
 								/>
 								<AvatarFallback>
-									{session?.data?.user?.name
-										? session.data.user.name
+									{session?.user?.name
+										? session.user.name
 												.slice(0, 2)
 												.toUpperCase()
 										: 'NA'}
@@ -47,6 +57,7 @@ const AuthAction = () => {
 							</Avatar>
 						</button>
 					}
+					onItemClick={() => setMenubar(false)}
 					items={[
 						...(admin
 							? [
@@ -74,7 +85,7 @@ const AuthAction = () => {
 							id: 'sign-out',
 							type: 'button',
 							text: 'Sign Out',
-							onClick: handleSignOut,
+							onClick: () => { handleSignOut().catch(console.error); },
 							icon: (
 								<LuLogOut className='size-5 md:size-[1.15rem]' />
 							),

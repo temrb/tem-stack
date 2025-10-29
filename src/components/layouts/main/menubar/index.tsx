@@ -6,7 +6,7 @@ import { cn } from '@/lib/core/utils';
 import { routes } from '@/routes';
 import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
 import { motion } from 'framer-motion';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/lib/auth/auth-client';
 import { usePathname } from 'next/navigation';
 import { lazy, useCallback } from 'react';
 import { LuPanelLeftClose, LuX } from 'react-icons/lu';
@@ -60,7 +60,7 @@ const menuItemVariants = {
 const Menubar = () => {
 	const { menubar, setMenubar } = useLayoutStore();
 	const currentPath = usePathname();
-	const session = useSession();
+	const { data: session, isPending } = useSession();
 
 	const features = routes.filter((route: Route) => {
 		if (route.category !== 'feature') return false;
@@ -73,14 +73,14 @@ const Menubar = () => {
 	const renderAuthAction = useCallback(() => {
 		return (
 			<SuspenseWrapper>
-				{session.status === 'authenticated' ? (
+				{!isPending && session ? (
 					<AuthAction />
 				) : (
 					<UnAuthAction />
 				)}
 			</SuspenseWrapper>
 		);
-	}, [session.status]);
+	}, [session, isPending]);
 
 	return (
 		<motion.aside

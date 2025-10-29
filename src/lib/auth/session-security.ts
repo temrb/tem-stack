@@ -9,7 +9,7 @@
 
 import type { UserRole } from '@/prisma/site/.generated/enums';
 import { TRPCError } from '@trpc/server';
-import type { Session } from './index';
+import type { Session } from './auth';
 
 interface SessionContext {
 	session: Session | null;
@@ -20,9 +20,9 @@ interface ValidatedUser {
 	id: string;
 	email: string;
 	name: string;
-	image?: string;
+	image?: string | null;
 	role?: UserRole;
-	alias?: string;
+	alias?: string | null;
 	onboardingCompleted?: boolean;
 }
 

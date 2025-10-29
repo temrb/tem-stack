@@ -3,7 +3,8 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Socials } from '@/lib/assets/svg/socials';
-import { signIn } from 'next-auth/react';
+import { signIn } from '@/lib/auth/auth-client';
+import { handleTRPCError } from '@/lib/core/errors/error-handler';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
@@ -20,11 +21,18 @@ const Auth = () => {
 						disabled={loading}
 						className='h-14 w-full'
 						variant='secondary'
-						onClick={() => {
+						onClick={async () => {
 							setLoading(true);
-							signIn('google', {
-								callbackUrl: redirectTo ? `${redirectTo}` : '/',
-							}).then(() => setLoading(false));
+							try {
+								await signIn.social({
+									provider: 'google',
+									callbackURL: redirectTo || '/',
+								});
+							} catch (error) {
+								handleTRPCError(error, 'Sign-in failed. Please try again.');
+							} finally {
+								setLoading(false);
+							}
 						}}
 						aria-label='Continue with Google'
 					>

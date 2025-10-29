@@ -1,23 +1,21 @@
 import 'server-only';
 
-import type { UserRole } from '@/prisma/site/.generated/enums';
-import type { ISODateString } from 'next-auth';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from './options';
+import { auth } from './auth';
+import { headers } from 'next/headers';
 
-export interface Session {
-	user: {
-		id: string;
-		email: string;
-		name: string;
-		image?: string;
-		role?: UserRole;
-		alias?: string;
-		onboardingCompleted?: boolean;
-	};
-	expires: ISODateString;
+export type Session = typeof auth.$Infer.Session;
+
+export async function getSession(): Promise<Session | null> {
+	try {
+		const session = await auth.api.getSession({
+			headers: await headers(),
+		});
+		return session;
+	} catch (error) {
+		console.error('Error getting session:', error);
+		return null;
+	}
 }
 
-export const getSession = async () => {
-	return getServerSession(authOptions) as Promise<Session>;
-};
+// Re-export auth instance for direct use
+export { auth } from './auth';

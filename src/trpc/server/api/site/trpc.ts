@@ -27,6 +27,8 @@ import { TRPCThrow } from './errors';
  * This helper generates the "internals" for a tRPC context. The API handler and RSC clients each
  * wrap this and provides the required context.
  *
+ * Now using Better Auth for session management (migrated from NextAuth).
+ *
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
