@@ -13,8 +13,8 @@ import * as z from 'zod';
 export const UpdateNoteSchema = z.object({
 	note: z
 		.string()
-		.max(5000, 'Note must be less than 5000 characters')
-		.trim(),
+		.trim()
+		.max(5000, 'Note must be less than 5000 characters'),
 });
 
 // Type exports

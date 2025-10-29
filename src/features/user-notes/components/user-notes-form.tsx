@@ -101,15 +101,12 @@ const UserNotesForm = ({ initialNote }: UserNotesFormProps) => {
 	const formErrorHandler =
 		createFormErrorHandler<z.infer<typeof UpdateNoteSchema>>();
 
-	const handleSubmit = () => {
-		void form.handleSubmit(onSubmit, formErrorHandler)();
-	};
-
 	const isLoading = updateNoteMutation.isPending;
+	const { isDirty } = form.formState;
 
 	return (
 		<Form {...form}>
-			<form onSubmit={(e) => e.preventDefault()} className='space-y-4'>
+			<form onSubmit={form.handleSubmit(onSubmit, formErrorHandler)} className='space-y-4'>
 				<FormField
 					control={form.control}
 					name='note'
@@ -120,6 +117,7 @@ const UserNotesForm = ({ initialNote }: UserNotesFormProps) => {
 									{...field}
 									placeholder='Start writing your note here...'
 									className='min-h-[400px] resize-y'
+									maxLength={5000}
 									disabled={isLoading}
 									aria-label='Note content'
 								/>
@@ -130,10 +128,9 @@ const UserNotesForm = ({ initialNote }: UserNotesFormProps) => {
 				/>
 				<div className='flex justify-end'>
 					<Button
-						type='button'
-						onClick={handleSubmit}
+						type='submit'
 						loading={isLoading}
-						disabled={isLoading}
+						disabled={isLoading || !isDirty}
 						aria-label='Save note'
 					>
 						Save Note
