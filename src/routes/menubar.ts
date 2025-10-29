@@ -10,7 +10,7 @@ const menubarRoutes: Route[] = [
 		path: '/notes',
 		displayPath: '/notes',
 		displayName: 'Notes',
-		type: 'public',
+		type: 'private',
 		category: 'feature',
 		icon: LuNotebook,
 	},

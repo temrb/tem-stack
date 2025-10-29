@@ -2,6 +2,10 @@ import MainLayout from '@/components/layouts/main';
 import env from '@/env';
 import { Providers } from '@/providers';
 import { Analytics } from '@/scripts';
+import {
+	createOrganizationStructuredData,
+	createWebSiteStructuredData,
+} from '@/lib/metadata/structured-data';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
@@ -89,10 +93,25 @@ export default function RootLayout({
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
+	const organizationSchema = createOrganizationStructuredData();
+	const websiteSchema = createWebSiteStructuredData();
+
 	return (
 		<html lang='en' suppressHydrationWarning>
 			<head>
 				<Analytics />
+				<script
+					type='application/ld+json'
+					dangerouslySetInnerHTML={{
+						__html: JSON.stringify(organizationSchema),
+					}}
+				/>
+				<script
+					type='application/ld+json'
+					dangerouslySetInnerHTML={{
+						__html: JSON.stringify(websiteSchema),
+					}}
+				/>
 			</head>
 			<body
 				className={`${hubot.className} h-[calc(100dvh)] w-full bg-background text-foreground antialiased`}

@@ -18,38 +18,43 @@ const MenubarItem = (props: Route) => {
 		onboardingCompleteRequired,
 		icon: Icon,
 	} = props;
+
 	const currentPath = usePathname();
 	const { setMenubar } = useLayoutStore();
 	const { isMobile } = useMediaQuery();
 
 	const navigationPath = displayPath || path;
 
+	// Check if this route is active
 	const isActive =
 		currentPath === navigationPath ||
 		(navigationPath !== '/' && currentPath.startsWith(navigationPath));
 
+	// Close menubar on mobile after click
 	const handleMenubarClose = () => {
 		if (isMobile) {
 			setMenubar(false);
 		}
 	};
 
-	const defaultStyles =
-		'flex w-full items-center justify-start md:px-3 md:py-1 p-4 text-sm font-medium text-muted-foreground md:rounded-sm';
+	// Base styles for all items
+	const baseStyles =
+		'flex w-full items-center justify-start gap-3 md:px-3 md:py-1 p-4 text-sm font-medium text-muted-foreground md:rounded-sm';
 
+	// Render disabled/coming soon items
 	if (status) {
 		return (
 			<div
-				className={cn(defaultStyles, 'cursor-default opacity-60')}
+				className={cn(baseStyles, 'cursor-default opacity-60')}
 				aria-label={`${displayName} - ${status}`}
 			>
 				{Icon && (
 					<Icon
-						className='mr-2 h-4 w-4 flex-shrink-0'
+						className='h-4 w-4 flex-shrink-0'
 						aria-hidden='true'
 					/>
 				)}
-				<p className='text-overflow w-full truncate font-mono italic'>
+				<p className='w-full truncate font-mono italic'>
 					{status === 'soon' && 'Soon'}
 					{status === 'next' && 'Next Update'}
 				</p>
@@ -57,18 +62,18 @@ const MenubarItem = (props: Route) => {
 		);
 	}
 
+	// Render active navigation link
 	return (
 		<Button
 			variant='ghost'
-			className={cn(
-				defaultStyles,
-				'gap-3',
-				isActive &&
-					'bg-foreground text-background md:pointer-events-none',
-			)}
+			href={navigationPath}
 			onClick={handleMenubarClose}
 			aria-label={displayName}
-			href={navigationPath}
+			aria-current={isActive ? 'page' : undefined}
+			className={cn(
+				baseStyles,
+				isActive && 'bg-foreground text-background',
+			)}
 			icon={
 				Icon && (
 					<Icon
@@ -78,7 +83,8 @@ const MenubarItem = (props: Route) => {
 				)
 			}
 			iconPosition='left'
-			disableWhilePending
+			disableWhilePending={true} // Explicitly enable pending state handling
+			prefetch={false} // Disable prefetch to see pending state clearly
 		>
 			{displayName}
 		</Button>

@@ -9,7 +9,7 @@ const SettingsSection = ({
 	return (
 		<ListItem>
 			<div className='flex h-full w-full flex-col'>
-				<h3 className='text-lg font-semibold'>{title}</h3>
+				<h2 className='text-lg font-semibold'>{title}</h2>
 				<p className='text-sm text-muted-foreground'>{description}</p>
 			</div>
 			<div className='w-full'>{children}</div>

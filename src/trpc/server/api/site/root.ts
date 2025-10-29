@@ -1,6 +1,6 @@
 import { settingsRouter } from '@/features/settings/api';
+import { userNotesFeatureRouter } from '@/features/user-notes/api';
 import { createCallerFactory, createTRPCRouter } from './trpc';
-import { userNotesFeatureRouter } from "@/features/user-notes/api";
 
 /**
  * This is the primary router for your server.
@@ -8,8 +8,8 @@ import { userNotesFeatureRouter } from "@/features/user-notes/api";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
-    settings: settingsRouter,
-    userNotes: userNotesFeatureRouter
+	settings: settingsRouter,
+	userNotes: userNotesFeatureRouter,
 });
 
 // export type definition of API

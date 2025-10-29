@@ -1,5 +1,5 @@
 import type { Route } from '@/lib/core/types/routes';
-import { LuNewspaper, LuTable2, LuFileText } from 'react-icons/lu';
+import { LuNewspaper, LuTable2 } from 'react-icons/lu';
 
 /**
  * Core navigation routes - Primary navigation items and their detail pages
@@ -47,16 +47,6 @@ const coreRoutes: Route[] = [
 		displayName: 'Visualize Tracking',
 		type: 'private',
 		category: 'ancillary',
-	},
-
-	// Notes page
-	{
-		path: '/notes',
-		displayPath: '/notes',
-		displayName: 'Notes',
-		type: 'private',
-		category: 'ancillary',
-		icon: LuFileText,
 	},
 ];
 

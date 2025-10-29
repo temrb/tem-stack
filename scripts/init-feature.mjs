@@ -197,11 +197,11 @@ import ModalLayout from '@/modals/modal-layout';
 const Example${kebabToPascal(name)}Modal = () => {
 	return (
 		<ModalLayout
-			title="Example ${kebabToTitle(name)} Modal"
-			description="This is a sample modal for the ${name} feature."
+			title='Example ${kebabToTitle(name)} Modal'
+			description='This is a sample modal for the ${name} feature.'
 			displayImage={{ type: 'icon', iconText: '✨' }}
 		>
-			<div className="p-4">
+			<div className='p-4'>
 				<p>Modal content goes here.</p>
 				<p>Implement your modal UI and logic.</p>
 			</div>

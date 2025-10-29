@@ -1,5 +1,15 @@
 import { cn } from '@/lib/core/utils';
+import type { Metadata } from 'next';
 import Auth from './auth';
+
+export const metadata: Metadata = {
+	title: 'Get Started',
+	description: 'Sign in or create an account to get started.',
+	robots: {
+		index: false,
+		follow: true,
+	},
+};
 
 const Landing = () => {
 	return (
