@@ -1,1148 +1,315 @@
 <directory_structure>
-.claude/
-  CLAUDE.md
 src/
   features/
-    settings/
+    user-notes/
       api/
         services/
-          user.service.ts
+          user-notes.service.ts
         index.ts
-        user.ts
+        user-notes.ts
       components/
-        modals/
-          delete-account-modal.tsx
-        profile-settings-layout.tsx
-        profile-settings-section.tsx
-        settings-header-action.tsx
-        settings-section.tsx
+        user-notes-form.tsx
       lib/
         types/
-          enums.ts
           index.ts
-          settings.d.ts
         validation/
-          index.ts
-          user.z.ts
+          user-notes.z.ts
       pages/
-        general/
-          sections/
-            delete-account.tsx
-            theme.tsx
-            update-alias.tsx
-          index.tsx
-      header-actions.ts
-      modals.ts
+        index.tsx
 </directory_structure>
 
 <files>
 This section contains the contents of the repository's files.
 
-<file path="src/features/settings/api/services/user.service.ts">
-import tryCatch from '@/lib/core/utils/try-catch';
-import { TRPCThrow } from '@/trpc/server/api/site/errors';
-import { site } from '@/trpc/server/site';
-import type {
-	DeleteAccountFormInput,
-	UpdateAliasFormInput,
-} from '../../lib/validation/user.z';
-export const updateUserAlias = async (
-	userId: string,
-	input: UpdateAliasFormInput,
-) => {
-	const { alias } = input;
-	const { data: existingUser, error: findError } = await tryCatch(
-		site.user.findFirst({
-			where: {
-				alias,
-				NOT: {
-					id: userId,
-				},
-			},
-		}),
-	);
-	if (findError) {
-		console.error(
-			'updateUserAlias: A non-TRPC, unexpected error occurred while checking for existing alias',
-			findError,
-			{ userId, alias },
-		);
-		TRPCThrow.internalError(
-			'An unexpected error occurred. Please try again.',
-		);
-	}
-	if (existingUser) {
-		TRPCThrow.conflict(
-			'This alias is already taken. Please choose another one.',
-		);
-	}
-	const { data, error } = await tryCatch(
-		site.user.update({
-			where: { id: userId },
-			data: { alias },
-			select: { alias: true },
-		}),
-	);
-	if (error) {
-		console.error(
-			'updateUserAlias: A non-TRPC, unexpected error occurred',
-			error,
-			{ userId, alias },
-		);
-		TRPCThrow.internalError(
-			'An unexpected error occurred while updating your alias. Please try again.',
-		);
-	}
-	return {
-		success: true,
-		message: 'Your alias has been successfully updated.',
-		alias: data!.alias,
-	};
-};
-export const checkAlias = async (alias: string, userId: string) => {
-	if (alias.length < 5) {
-		return { available: false, message: 'Alias is too short.' };
-	}
-	const { data: user, error } = await tryCatch(
-		site.user.findFirst({
-			where: {
-				alias: alias,
-				id: {
-					not: userId,
-				},
-			},
-		}),
-	);
-	if (error) {
-		console.error(
-			'checkAliasAvailability: A non-TRPC, unexpected error occurred',
-			error,
-			{ alias },
-		);
-		TRPCThrow.internalError(
-			'An unexpected error occurred while checking alias availability.',
-		);
-	}
-	if (user) {
-		return { available: false, message: 'Alias is already taken.' };
-	}
-	return { available: true, message: 'Alias is available.' };
-};
-export const deleteUserAccount = async (
-	userId: string,
-	input: DeleteAccountFormInput,
-) => {
-	const { data: user, error: findError } = await tryCatch(
-		site.user.findUnique({
-			where: { id: userId },
-			select: { email: true },
-		}),
-	);
-	if (findError) {
-		console.error(
-			'deleteUserAccount: A non-TRPC, unexpected error occurred while finding user',
-			findError,
-			{ userId },
-		);
-		TRPCThrow.internalError(
-			'An unexpected error occurred while deleting your account. Please try again or contact support if the issue persists.',
-		);
-	}
-	if (!user) {
-		TRPCThrow.notFound(
-			'Cannot delete account: User account not found. Please log out and log back in.',
-		);
-	}
-	if (user?.email?.toLowerCase() !== input.email.toLowerCase()) {
-		TRPCThrow.badRequest(
-			'The email you entered does not match your account email.',
-		);
-	}
-	const { error } = await tryCatch(
-		site.user.delete({
-			where: { id: userId },
-		}),
-	);
-	if (error) {
-		console.error(
-			'deleteUserAccount: A non-TRPC, unexpected error occurred',
-			error,
-			{ userId },
-		);
-		TRPCThrow.internalError(
-			'An unexpected error occurred while deleting your account. Please try again or contact support if the issue persists.',
-		);
-	}
-	return {
-		success: true,
-		message: 'Your account has been successfully deleted',
-	};
-};
-export const checkUserOnboarding = async (userId: string) => {
-	const { data, error } = await tryCatch(
-		site.user.findUnique({
-			where: {
-				id: userId,
-			},
-			select: {
-				onboardingCompleted: true,
-			},
-		}),
-	);
-	if (error) {
-		console.error(
-			'checkUserOnboarding: A non-TRPC, unexpected error occurred',
-			error,
-			{ userId },
-		);
-		TRPCThrow.internalError(
-			'An unexpected error occurred while checking your onboarding status. Please refresh the page and try again.',
-		);
-	}
-	if (!data) {
-		return {
-			success: true,
-			isComplete: false,
-		};
-	}
-	return {
-		success: true,
-		isComplete: data.onboardingCompleted ?? false,
-	};
-};
-export const updateUserOnboarding = async (
-	userId: string,
-	complete: boolean,
-) => {
-	const { data, error } = await tryCatch(
-		site.user.update({
-			where: {
-				id: userId,
-			},
-			data: {
-				onboardingCompleted: complete,
-				updatedAt: new Date(),
-			},
-			select: {
-				onboardingCompleted: true,
-			},
-		}),
-	);
-	if (error) {
-		console.error(
-			'updateUserOnboarding: A non-TRPC, unexpected error occurred',
-			error,
-			{ userId, complete },
-		);
-		TRPCThrow.internalError(
-			'An unexpected error occurred while updating your onboarding status. Please try again.',
-		);
-	}
-	if (!data) {
-		TRPCThrow.notFound(
-			'Cannot update onboarding: User account not found. Please log out and log back in.',
-		);
-	}
-	return {
-		success: true,
-		complete: data!.onboardingCompleted,
-	};
-};
-</file>
-
-<file path="src/features/settings/api/index.ts">
-import { createTRPCRouter } from '@/trpc/server/api/site/trpc';
-import { generalRouter } from './user';
-export const settingsRouter = createTRPCRouter({
-	general: generalRouter,
-});
-</file>
-
-<file path="src/features/settings/api/user.ts">
-import {
-	createTRPCRouter,
-	protectedProcedure,
-} from '@/trpc/server/api/site/trpc';
-import {
-	CheckAliasSchema,
-	DeleteAccountFormSchema,
-	UpdateAliasFormSchema,
-	UpdateOnboardingSchema,
-} from '../lib/validation/user.z';
-import {
-	checkAlias as checkAliasAvailability,
-	checkUserOnboarding,
-	deleteUserAccount,
-	updateUserAlias,
-	updateUserOnboarding,
-} from './services/user.service';
-const updateAlias = protectedProcedure
-	.input(UpdateAliasFormSchema)
-	.mutation(async ({ ctx, input }) => {
-		return updateUserAlias(ctx.session.user.id, input);
-	});
-const checkAlias = protectedProcedure
-	.input(CheckAliasSchema)
-	.query(async ({ ctx, input }) => {
-		return checkAliasAvailability(input.alias, ctx.session.user.id);
-	});
-const deleteAccount = protectedProcedure
-	.input(DeleteAccountFormSchema)
-	.mutation(async ({ ctx, input }) => {
-		return deleteUserAccount(ctx.session.user.id, input);
-	});
-const checkOnboarding = protectedProcedure.query(async ({ ctx }) => {
-	return checkUserOnboarding(ctx.session.user.id);
-});
-const updateOnboarding = protectedProcedure
-	.input(UpdateOnboardingSchema)
-	.mutation(async ({ ctx, input }) => {
-		return updateUserOnboarding(ctx.session.user.id, input.complete);
-	});
-export const generalRouter = createTRPCRouter({
-	updateAlias,
-	checkAlias,
-	deleteAccount,
-	checkOnboarding,
-	updateOnboarding,
-});
-</file>
-
-<file path="src/features/settings/components/modals/delete-account-modal.tsx">
+<file path="src/features/user-notes/components/user-notes-form.tsx">
 'use client';
+import { Button } from '@/components/ui/button';
 import {
 	Form,
 	FormControl,
-	FormDescription,
 	FormField,
 	FormItem,
 	FormMessage,
 } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { DeleteAccountFormSchema } from '@/features/settings/lib/validation/user.z';
+import { Textarea } from '@/components/ui/textarea';
+import {
+	UpdateNoteSchema,
+	type UpdateNoteInput,
+} from '@/features/user-notes/lib/validation/user-notes.z';
 import { createFormErrorHandler } from '@/hooks/useHandleFormError';
 import {
 	handleTRPCError,
 	handleTRPCSuccess,
 } from '@/lib/core/errors/error-handler';
-import tryCatch from '@/lib/core/utils/try-catch';
-import { ModalFooterActions } from '@/modals/modal-footer-actions';
-import ModalLayout from '@/modals/modal-layout';
 import { api } from '@/trpc/react';
-import { useModalStore } from '@/zustand/ui/useModalStore';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useSession, signOut } from '@/lib/auth/auth-client';
-import { useRouter } from 'next/navigation';
-import React, { useCallback, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
-const DeleteAccountModal: React.FC = () => {
-	const { data: session } = useSession();
-	const { hide } = useModalStore();
-	const router = useRouter();
-	const [isDeleting, setIsDeleting] = useState(false);
-	const form = useForm<z.infer<typeof DeleteAccountFormSchema>>({
-		resolver: zodResolver(DeleteAccountFormSchema),
-		defaultValues: { delete: '', email: '' },
+interface UserNotesFormProps {
+	initialNote: string;
+}
+const UserNotesForm = ({ initialNote }: UserNotesFormProps) => {
+	const utils = api.useUtils();
+	const form = useForm<z.infer<typeof UpdateNoteSchema>>({
+		resolver: zodResolver(UpdateNoteSchema),
+		defaultValues: {
+			note: initialNote,
+		},
 		mode: 'onSubmit',
 	});
-	const deleteAccountMutation =
-		api.settings.general.deleteAccount.useMutation({
-			onMutate: () => setIsDeleting(true),
-			onSettled: () => setIsDeleting(false),
-		});
-	const handleSignOut = useCallback(async () => {
-		const { error } = await tryCatch(
-			signOut({
-				fetchOptions: {
-					onSuccess: () => {
-						router.push('/');
-					},
-				},
-			}),
-		);
-		if (error) {
-			console.error('Sign out failed', error);
-			handleTRPCError(
-				error,
-				'Unable to sign out. Please close the browser.',
-			);
+	useEffect(() => {
+		if (initialNote !== undefined) {
+			form.reset({ note: initialNote });
 		}
-	}, [router]);
-	const onSubmit = useCallback(
-		async (values: z.infer<typeof DeleteAccountFormSchema>) => {
-			if (isDeleting) return;
-			if (
-				values.email.toLowerCase() !==
-				session?.user?.email?.toLowerCase()
-			) {
-				handleTRPCError(
-					new Error('Email does not match your account email'),
-				);
-				return;
-			}
-			const { data: result, error } = await tryCatch(
-				deleteAccountMutation.mutateAsync(values),
-			);
-			if (error) {
-				handleTRPCError(error, 'Failed to delete account');
-				return;
-			}
-			if (result) {
-				handleTRPCSuccess('Account deleted successfully!', result);
-				hide();
-				await handleSignOut();
-			}
+	}, [initialNote, form]);
+	const updateNoteMutation = api.userNotes.main.updateNote.useMutation({
+		onMutate: async (newNoteInput: UpdateNoteInput) => {
+			await utils.userNotes.main.getNote.cancel();
+			const previousNoteData = utils.userNotes.main.getNote.getData();
+			utils.userNotes.main.getNote.setData(undefined, {
+				success: true,
+				note: newNoteInput.note,
+			});
+			return { previousNoteData };
 		},
-		[
-			deleteAccountMutation,
-			handleSignOut,
-			isDeleting,
-			session?.user?.email,
-			hide,
-		],
+		onError: (error, _variables, context) => {
+			if (context?.previousNoteData) {
+				utils.userNotes.main.getNote.setData(
+					undefined,
+					context.previousNoteData,
+				);
+			}
+			handleTRPCError(error, 'Failed to save note');
+		},
+		onSuccess: (data) => {
+			handleTRPCSuccess('Note saved successfully!', data);
+		},
+		onSettled: () => {
+			void utils.userNotes.main.getNote.invalidate();
+		},
+	});
+	const onSubmit = useCallback(
+		(values: z.infer<typeof UpdateNoteSchema>) => {
+			updateNoteMutation.mutate(values);
+		},
+		[updateNoteMutation],
 	);
 	const formErrorHandler =
-		createFormErrorHandler<z.infer<typeof DeleteAccountFormSchema>>();
-	if (!session?.user) return null;
+		createFormErrorHandler<z.infer<typeof UpdateNoteSchema>>();
 	const handleSubmit = () => {
 		void form.handleSubmit(onSubmit, formErrorHandler)();
 	};
-	const footerActions = (
-		<ModalFooterActions
-			actions={[
-				{
-					label: 'Cancel',
-					onClick: () => hide(),
-					variant: 'none',
-					disabled: isDeleting,
-					'aria-label': 'Cancel and close modal',
-					priority: 'secondary',
-				},
-				{
-					label: 'Delete Account',
-					onClick: handleSubmit,
-					variant: 'destructive',
-					disabled: isDeleting,
-					loading: isDeleting,
-					'aria-label': 'Delete account permanently',
-					priority: 'primary',
-				},
-			]}
-		/>
-	);
+	const isLoading = updateNoteMutation.isPending;
 	return (
-		<ModalLayout
-			title='Delete Account'
-			description='This action is irreversible. Confirm your account deletion by typing "confirm delete account" and entering your account email.'
-			displayImage={{
-				type: 'image',
-				src: session?.user?.image || '',
-				alt:
-					(session?.user?.name ?? 'Avatar').replaceAll(' ', '') ||
-					'Avatar',
-			}}
-			footer={footerActions}
-		>
-			<Form {...form}>
-				<form onSubmit={(e) => e.preventDefault()}>
-					<div className='flex flex-col space-y-4 p-4 text-left sm:px-20 md:px-14'>
-						<FormField
-							control={form.control}
-							name='delete'
-							render={({ field }) => (
-								<FormItem className='space-y-1'>
-									<FormDescription className='text-pretty text-left text-xs tracking-normal sm:text-sm'>
-										Please type{' '}
-										<code className='text-normal py-.5 rounded-sm bg-muted px-1 font-semibold tracking-tighter'>
-											confirm delete account
-										</code>
-									</FormDescription>
-									<FormControl>
-										<Input
-											aria-label='Delete Account'
-											type='text'
-											{...field}
-											autoComplete='off'
-											autoFocus
-											disabled={isDeleting}
-											aria-describedby='delete-account-description'
-											aria-invalid={
-												!!form.formState.errors.delete
-											}
-										/>
-									</FormControl>
-									<FormMessage />
-								</FormItem>
-							)}
-						/>
-						<FormField
-							control={form.control}
-							name='email'
-							render={({ field }) => (
-								<FormItem className='space-y-1'>
-									<FormDescription className='text-pretty text-left text-xs tracking-normal sm:text-sm'>
-										Please enter your{' '}
-										<code className='text-normal py-.5 rounded-sm bg-muted px-1 font-semibold tracking-tighter'>
-											account email
-										</code>
-									</FormDescription>
-									<FormControl>
-										<Input
-											aria-label='Email'
-											type='email'
-											{...field}
-											autoComplete='email'
-											disabled={isDeleting}
-											aria-describedby='email-confirmation-description'
-											aria-invalid={
-												!!form.formState.errors.email
-											}
-										/>
-									</FormControl>
-									<FormMessage />
-								</FormItem>
-							)}
-						/>
-					</div>
-				</form>
-			</Form>
-		</ModalLayout>
+		<Form {...form}>
+			<form onSubmit={(e) => e.preventDefault()} className='space-y-4'>
+				<FormField
+					control={form.control}
+					name='note'
+					render={({ field }) => (
+						<FormItem>
+							<FormControl>
+								<Textarea
+									{...field}
+									placeholder='Start writing your note here...'
+									className='min-h-[400px] resize-y'
+									disabled={isLoading}
+									aria-label='Note content'
+								/>
+							</FormControl>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+				<div className='flex justify-end'>
+					<Button
+						type='button'
+						onClick={handleSubmit}
+						loading={isLoading}
+						disabled={isLoading}
+						aria-label='Save note'
+					>
+						Save Note
+					</Button>
+				</div>
+			</form>
+		</Form>
 	);
 };
-export default React.memo(DeleteAccountModal);
+export default UserNotesForm;
 </file>
 
-<file path="src/features/settings/components/profile-settings-layout.tsx">
-import React from 'react';
-import ListItem from '../../../components/layouts/list-item';
-interface ProfileSettingsLayoutProps {
-	children: React.ReactNode;
-}
-const ProfileSettingsLayout = (props: ProfileSettingsLayoutProps) => {
-	return <ListItem>{props.children}</ListItem>;
-};
-export default ProfileSettingsLayout;
-</file>
-
-<file path="src/features/settings/components/profile-settings-section.tsx">
-import type { ProfileSettingsSectionProps } from '../lib/types';
-const ProfileSettingsSection = (props: ProfileSettingsSectionProps) => {
-	const { title, description, children } = props;
-	return (
-		<div className='flex flex-col space-y-4'>
-			<div className='flex flex-col space-y-1'>
-				<h1 className='overflow-hidden truncate font-medium'>
-					{title}
-				</h1>
-				<p className='text-xs text-muted-foreground'>{description}</p>
-			</div>
-			{children}
-		</div>
+<file path="src/features/user-notes/api/services/user-notes.service.ts">
+import tryCatch from '@/lib/core/utils/try-catch';
+import { TRPCThrow } from '@/trpc/server/api/site/errors';
+import { site } from '@/trpc/server/site';
+import type { UpdateNoteInput } from '../../lib/validation/user-notes.z';
+export const getNote = async (userId: string) => {
+	const { data, error } = await tryCatch(
+		site.user.findUnique({
+			where: { id: userId },
+			select: { note: true },
+		})
 	);
-};
-export default ProfileSettingsSection;
-</file>
-
-<file path="src/features/settings/components/settings-header-action.tsx">
-'use client';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select';
-import { SettingsRoutes, type SettingsRoutesType } from '@/features/settings/lib/types';
-import { formatEnumToTitleCase } from '@/lib/core/utils';
-import { usePathname, useRouter } from 'next/navigation';
-import { useTransition } from 'react';
-const SettingsAction = () => {
-	const pathname = usePathname();
-	const router = useRouter();
-	const [isPending, startTransition] = useTransition();
-	const getCurrentRoute = (): SettingsRoutesType => {
-		if (pathname === '/settings') return SettingsRoutes.General;
-		const routeSegment = pathname.replace('/settings/', '');
-		const matchedRoute = Object.values(SettingsRoutes).find(
-			(route) => route === routeSegment,
+	if (error) {
+		console.error(
+			'getNote: An unexpected error occurred while fetching user note',
+			error,
+			{ userId }
 		);
-		return matchedRoute ?? SettingsRoutes.General;
+		TRPCThrow.internalError(
+			'An unexpected error occurred while fetching your note. Please try again.'
+		);
+	}
+	if (!data) {
+		TRPCThrow.notFound('User not found.');
+	}
+	return {
+		success: true,
+		note: data!.note ?? '',
 	};
-	const currentRoute = getCurrentRoute();
-	const handleRouteChange = (value: string) => {
-		startTransition(() => {
-			const route = value as SettingsRoutesType;
-			if (route === SettingsRoutes.General) {
-				router.push('/settings');
-			} else {
-				router.push(`/settings/${route}`);
-			}
-		});
+};
+/**
+ * Updates the note for a specific user
+ */
+export const updateNote = async (userId: string, input: UpdateNoteInput) => {
+	const { note } = input;
+	const { data, error } = await tryCatch(
+		site.user.update({
+			where: { id: userId },
+			data: { note },
+			select: { note: true },
+		})
+	);
+	if (error) {
+		console.error(
+			'updateNote: An unexpected error occurred while updating user note',
+			error,
+			{ userId }
+		);
+		TRPCThrow.internalError(
+			'An unexpected error occurred while updating your note. Please try again.'
+		);
+	}
+	if (!data) {
+		TRPCThrow.notFound('User not found.');
+	}
+	return {
+		success: true,
+		message: 'Your note has been successfully saved.',
+		note: data!.note,
 	};
-	return (
-		<>
-			<Select
-				value={currentRoute}
-				onValueChange={handleRouteChange}
-				disabled={isPending}
-			>
-				<SelectTrigger
-					variant='none'
-					aria-label='Select a category'
-					disabled={isPending}
-				>
-					<SelectValue
-						placeholder='Select a category'
-						aria-label='Category Values'
-					/>
-				</SelectTrigger>
-				<SelectContent highZIndex aria-label='Category Options'>
-					{Object.values(SettingsRoutes).map((category) => (
-						<SelectItem
-							key={category}
-							value={category}
-							aria-label={category}
-						>
-							{formatEnumToTitleCase(category)}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
-		</>
-	);
 };
-export default SettingsAction;
 </file>
 
-<file path="src/features/settings/components/settings-section.tsx">
-import ListItem from '@/components/layouts/list-item';
-import type { ProfileSettingsSectionProps } from '../lib/types';
-const SettingsSection = ({
-	title,
-	description,
-	children,
-}: ProfileSettingsSectionProps) => {
-	return (
-		<ListItem>
-			<div className='flex h-full w-full flex-col'>
-				<h3 className='text-lg font-semibold'>{title}</h3>
-				<p className='text-sm text-muted-foreground'>{description}</p>
-			</div>
-			<div className='w-full'>{children}</div>
-		</ListItem>
-	);
-};
-export default SettingsSection;
+<file path="src/features/user-notes/api/index.ts">
+import { createTRPCRouter } from '@/trpc/server/api/site/trpc';
+import { userNotesRouter } from './user-notes';
+export const userNotesFeatureRouter = createTRPCRouter({
+	main: userNotesRouter,
+});
 </file>
 
-<file path="src/features/settings/lib/types/enums.ts">
-export const SettingsRoutes = {
-	General: 'GENERAL',
-} as const;
-export type SettingsRoutesType = typeof SettingsRoutes[keyof typeof SettingsRoutes];
-</file>
-
-<file path="src/features/settings/lib/types/index.ts">
-export * from './enums';
-export type * from './settings';
-</file>
-
-<file path="src/features/settings/lib/types/settings.d.ts">
-export interface ProfileSettingsSectionProps {
-	title: string;
-	description: string;
-	children: React.ReactNode;
-}
-</file>
-
-<file path="src/features/settings/lib/validation/index.ts">
-export * from './user.z';
-</file>
-
-<file path="src/features/settings/lib/validation/user.z.ts">
-import * as z from 'zod';
-export const DeleteAccountFormSchema = z.object({
-	delete: z
-		.string()
-		.min(1, 'Confirmation text is required')
-		.trim()
-		.refine((value) => value.toLowerCase() === 'confirm delete account', {
-			message: 'Please type exactly "confirm delete account"',
+<file path="src/features/user-notes/api/user-notes.ts">
+import { createTRPCRouter, protectedProcedure } from '@/trpc/server/api/site/trpc';
+import { UpdateNoteSchema } from '../lib/validation/user-notes.z';
+import * as userNotesService from './services/user-notes.service';
+export const userNotesRouter = createTRPCRouter({
+	getNote: protectedProcedure.query(async ({ ctx }) => {
+		const result = await userNotesService.getNote(ctx.session.user.id);
+		return result;
+	}),
+	updateNote: protectedProcedure
+		.input(UpdateNoteSchema)
+		.mutation(async ({ input, ctx }) => {
+			const result = await userNotesService.updateNote(
+				ctx.session.user.id,
+				input
+			);
+			return result;
 		}),
-	email: z.preprocess(
-		(val) => (typeof val === 'string' ? val.trim() : val),
-		z.email(),
-	),
 });
-export const UpdateProfileFormSchema = z.object({
-	name: z
+</file>
+
+<file path="src/features/user-notes/lib/types/index.ts">
+export interface ExampleUserNotesType {
+	id: string;
+	name: string;
+}
+export type {};
+</file>
+
+<file path="src/features/user-notes/lib/validation/user-notes.z.ts">
+import * as z from 'zod';
+export const UpdateNoteSchema = z.object({
+	note: z
 		.string()
-		.max(100, 'Name must be less than 100 characters')
-		.trim()
-		.optional(),
-});
-export const UpdateAliasFormSchema = z.object({
-	alias: z
-		.string()
-		.min(5, 'Alias must be at least 5 characters')
-		.max(30, 'Alias cannot exceed 30 characters')
-		.regex(
-			/^[a-zA-Z0-9_.-]+$/,
-			'Alias can only contain letters, numbers, underscores, periods, and hyphens',
-		)
+		.max(5000, 'Note must be less than 5000 characters')
 		.trim(),
 });
-export const CheckAliasSchema = z.object({
-	alias: z.string(),
-});
-export const UpdateOnboardingSchema = z.object({
-	complete: z.boolean(),
-});
-export type DeleteAccountFormInput = z.infer<typeof DeleteAccountFormSchema>;
-export type UpdateProfileFormInput = z.infer<typeof UpdateProfileFormSchema>;
-export type UpdateAliasFormInput = z.infer<typeof UpdateAliasFormSchema>;
-export type CheckAliasInput = z.infer<typeof CheckAliasSchema>;
-export type UpdateOnboardingInput = z.infer<typeof UpdateOnboardingSchema>;
+export type UpdateNoteInput = z.infer<typeof UpdateNoteSchema>;
 </file>
 
-<file path="src/features/settings/pages/general/sections/delete-account.tsx">
-'use client';
-import { Button } from '@/components/ui/button';
-import { useModals } from '@/hooks/useModals';
-const DeleteAccount = () => {
-	const modals = useModals();
+<file path="src/features/user-notes/pages/index.tsx">
+import { api } from '@/trpc/server';
+import { getSession } from '@/lib/auth';
+import UserNotesForm from '@/features/user-notes/components/user-notes-form';
+import { TRPCError } from '@trpc/server';
+const UserNotesPage = async () => {
+	const session = await getSession();
+	if (!session?.user) {
+		return (
+			<div className='mx-auto max-w-4xl space-y-6 p-6'>
+				<div className='space-y-2'>
+					<h1 className='text-3xl font-bold'>My Notes</h1>
+					<p className='text-muted-foreground text-sm'>
+						Write and save your private notes. Maximum 5000
+						characters.
+					</p>
+				</div>
+				<div className='flex items-center justify-center py-12'>
+					<p className='text-muted-foreground'>
+						Please sign in to view and manage your notes.
+					</p>
+				</div>
+			</div>
+		);
+	}
+	let initialNoteContent = '';
+	let fetchError: string | null = null;
+	try {
+		// Directly call the tRPC query on the server for initial data fetching.
+		// The `api` import from '@/trpc/server' ensures this runs in an RSC context
+		const result = await api.userNotes.main.getNote();
+		initialNoteContent = result.note;
+	} catch (error) {
+		if (error instanceof TRPCError) {
+			fetchError = error.message;
+		} else {
+			console.error('Failed to fetch user note on server:', error);
+			fetchError = 'Failed to load your note due to an unexpected error.';
+		}
+	}
 	return (
-		<Button
-			className='w-fit'
-			onClick={() => modals.show.deleteAccount({})}
-			variant='destructive'
-			text='Confirm Delete Account'
-			aria-label='Delete Account'
-		/>
-	);
-};
-export default DeleteAccount;
-</file>
-
-<file path="src/features/settings/pages/general/sections/theme.tsx">
-'use client';
-import { useTheme } from 'next-themes';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/core/utils';
-export default function Theme() {
-	const { setTheme, theme } = useTheme();
-	return (
-		<div className='flex flex-row'>
-			<Button
-				className={cn(
-					'rounded-r-none border-r-0',
-					theme === 'system' && 'pointer-events-none',
-				)}
-				variant={theme === 'system' ? 'default' : 'outline'}
-				size='sm'
-				onClick={() => setTheme('system')}
-				text='System'
-				aria-label='System Theme'
-			/>
-			<Button
-				className={cn(
-					'rounded-l-none rounded-r-none',
-					theme === 'dark' && 'pointer-events-none',
-				)}
-				variant={theme === 'dark' ? 'default' : 'outline'}
-				size='sm'
-				onClick={() => setTheme('dark')}
-				text='Dark'
-				aria-label='Dark Theme'
-			/>
-			<Button
-				className={cn(
-					'rounded-l-none border-l-0',
-					theme === 'light' && 'pointer-events-none',
-				)}
-				variant={theme === 'light' ? 'default' : 'outline'}
-				size='sm'
-				onClick={() => setTheme('light')}
-				text='Light'
-				aria-label='Light Theme'
-			/>
+		<div className='mx-auto max-w-4xl space-y-6 p-6'>
+			<div className='space-y-2'>
+				<h1 className='text-3xl font-bold'>My Notes</h1>
+				<p className='text-muted-foreground text-sm'>
+					Write and save your private notes. Maximum 5000 characters.
+				</p>
+			</div>
+			{fetchError ? (
+				<div className='flex items-center justify-center py-12'>
+					<p className='text-destructive'>{fetchError}</p>
+				</div>
+			) : (
+				<UserNotesForm initialNote={initialNoteContent} />
+			)}
 		</div>
 	);
-}
-</file>
-
-<file path="src/features/settings/pages/general/sections/update-alias.tsx">
-const UpdateAlias = () => {
-	return <div>UpdateAlias</div>;
 };
-export default UpdateAlias;
-</file>
-
-<file path="src/features/settings/pages/general/index.tsx">
-import SettingsSection from '@/features/settings/components/settings-section';
-import DeleteAccount from './sections/delete-account';
-import Theme from './sections/theme';
-const GeneralSettings = () => {
-	return (
-		<>
-			{
-}
-			<SettingsSection
-				title='Dark Mode'
-				description='Change your theme.'
-				children={<Theme />}
-			/>
-			<SettingsSection
-				title='Delete Account'
-				description='Delete your account. This action is irreversible.'
-				children={<DeleteAccount />}
-			/>
-		</>
-	);
-};
-export default GeneralSettings;
-</file>
-
-<file path="src/features/settings/header-actions.ts">
-import { lazy } from 'react';
-import { createHeaderActionDefinition } from '@/lib/ui/header-actions';
-export const settingsPage = createHeaderActionDefinition({
-	Component: lazy(() => import('./components/settings-header-action')),
-	config: {
-		routeMatcher: '/settings',
-	},
-});
-</file>
-
-<file path="src/features/settings/modals.ts">
-import { lazy } from 'react';
-import { createModalDefinition } from '@/lib/ui/modals';
-export const deleteAccount = createModalDefinition({
-	Component: lazy(() => import('./components/modals/delete-account-modal')),
-	defaultConfig: {
-		size: 'md',
-		preventEscapeClose: true,
-		title: 'Delete Account',
-		description: 'Confirm account deletion',
-	},
-});
-</file>
-
-<file path=".claude/CLAUDE.md">
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Tech Stack Overview
-
-This is a Next.js 16 application built with the T3 Stack architecture:
-
-- **Framework**: Next.js 16 with App Router, React 19, TypeScript 5.8
-- **Styling**: TailwindCSS with Radix UI components
-- **State Management**: Zustand with Immer for client state
-- **API Layer**: tRPC 11 for end-to-end type-safe APIs
-- **Database**: PostgreSQL with Prisma 6.18 (using @prisma/adapter-pg for connection pooling)
-- **Authentication**: NextAuth.js 4.24 with Google OAuth
-- **Caching**: Upstash Redis for rate limiting and caching
-- **Validation**: Zod 4 for runtime type validation
-- **AI SDK**: Vercel AI SDK 5 (available but optional)
-
-## Development Commands
-
-### Core Development
-
-```bash
-npm run dev              # Start dev server on port 4242 with Prisma Studio
-npm run build            # Production build with Prisma generation
-npm run lint             # Run ESLint
-npm run format           # Auto-fix with ESLint and Prettier
-npm run format:check     # Check formatting without fixing
-npm run analyze          # Analyze bundle size
-```
-
-### Database Operations
-
-**Client Generation** (always run after schema changes):
-
-```bash
-npm run db:generate      # Generate Prisma client
-```
-
-**Development Migrations**:
-
-```bash
-npm run db:migrate:dev   # Create and apply new migration
-npm run db:push          # Push schema changes without migration (dev only)
-npm run db:studio        # Open Prisma Studio on port 5555
-```
-
-**Production Deployment**:
-
-```bash
-npm run db:migrate:deploy  # Apply migrations in production
-```
-
-**Migration Management**:
-
-```bash
-npm run db:status        # Check migration status
-npm run db:reset         # Reset database (dev only - destroys data)
-npm run db:pull          # Pull schema from database
-```
-
-**Migration Debugging**:
-
-```bash
-npm run db:site:diff                # Show diff between schema and datasource
-npm run db:site:diff-from-prod      # Compare local schema to production DB
-npm run db:site:resolve-applied -- MIGRATION_NAME     # Mark migration as applied
-npm run db:site:resolve-rollback -- MIGRATION_NAME    # Mark migration as rolled back
-```
-
-## Feature Scaffolding
-
-The repository includes a powerful CLI tool for creating new features with proper structure and automatic registry integration.
-
-### Creating Features
-
-```bash
-npm run create                              # Interactive mode (recommended)
-npm run create -- my-feature                # Quick create with positional argument
-npm run create -- --name=my-feature         # Using --name flag
-npm run create -- -n my-feature             # Using -n short flag
-```
-
-### Interactive Module Selection
-
-When you run `npm run create`, you'll be prompted to select which modules to generate:
-
-- **API** (tRPC routes and services) - Creates:
-  - `api/index.ts` - Feature router that exports to root
-  - `api/{feature-name}.ts` - tRPC procedures
-  - `api/services/{feature-name}.service.ts` - Business logic layer
-  - Auto-updates `src/trpc/server/api/site/root.ts`
-
-- **Components** (React components) - Creates:
-  - `components/{feature-name}-component.tsx` - Example component
-
-- **Lib** (types and validation) - Creates:
-  - `lib/types/index.ts` - TypeScript type definitions
-  - `lib/validation/{feature-name}.z.ts` - Zod validation schemas
-
-- **Pages** (reusable page sections) - Creates:
-  - `pages/index.tsx` - Page component for composition
-
-- **Header Actions** (dynamic header content) - Creates:
-  - `header-actions.ts` - Header action definitions
-  - `components/{feature-name}-header-action.tsx` - Header component
-  - Auto-updates `src/components/layouts/main/header/header-actions/registry.ts`
-
-- **Modals** (dialogs/drawers) - Creates:
-  - `modals.ts` - Modal definitions
-  - `components/modals/example-{feature-name}-modal.tsx` - Example modal
-  - Auto-updates `src/modals/registry.ts`
-
-### What Gets Auto-Generated
-
-The scaffolding tool automatically:
-1. Creates the feature directory at `src/features/{feature-name}/`
-2. Generates boilerplate code with proper imports and type safety
-3. Updates registry files (tRPC root, modals registry, header actions registry)
-4. Uses proper naming conventions (kebab-case for files, PascalCase for components, camelCase for functions)
-5. Includes example implementations you can customize
-
-### Removing Features
-
-```bash
-npm run create -- --remove my-feature       # Remove feature and update registries
-npm run create -- -r my-feature             # Short form
-```
-
-The removal process:
-1. Removes imports and references from all registries
-2. Prompts for confirmation before deleting the directory
-3. Cleans up tRPC routes, modal definitions, and header actions
-
-## Architecture
-
-### Prisma Schema Organization
-
-The database schema is located at `src/prisma/site/schema/schema.prisma`. The generated Prisma client outputs to `src/prisma/site/.generated/` with separate subdirectories for client and enums.
-
-**Important**: Always use the generated types from `@/prisma/site/.generated/client` and `@/prisma/site/.generated/enums`.
-
-### tRPC Architecture
-
-The tRPC API follows a feature-based structure:
-
-1. **Router Definition**: `src/trpc/server/api/site/root.ts` - Main app router that aggregates feature routers
-2. **Feature Organization**: Each feature (e.g., settings) has:
-    - `src/features/{feature}/api/index.ts` - Feature router that exports to root
-    - `src/features/{feature}/api/{module}.ts` - Individual route modules (e.g., user.ts)
-    - `src/features/{feature}/api/services/{module}.service.ts` - Business logic separated from routes
-    - `src/features/{feature}/lib/validation/*.z.ts` - Zod validation schemas
-
-3. **Server Setup**: `src/trpc/server/api/site/trpc.ts` contains the tRPC initialization and procedure builders
-4. **Client Setup**: `src/trpc/react.tsx` provides the React Query integration
-
-### Middleware (Next.js Proxy)
-
-The application uses a custom middleware system in `src/lib/proxy/app.ts`:
-
-- Handles authentication state and routing
-- Validates JWT sessions for protected routes
-- Manages admin route access (dev-only)
-- Redirects based on user onboarding state
-- Session validation via `validateProxySession()` for protected routes
-
-### Authentication Flow
-
-NextAuth.js configuration in `src/lib/auth/options.ts`:
-
-- JWT strategy with custom session callbacks
-- Google OAuth provider (extensible for more providers)
-- Custom fields: `role`, `alias`, `onboardingCompleted`
-- Session security handled in `src/lib/auth/session-security.ts`
-- Client-side session handling in `src/lib/auth/client-session-handler.ts`
-
-### Zustand State Management
-
-Located in `src/zustand/`:
-
-- Uses Immer middleware for immutable updates
-- Configuration in `src/lib/infra/storage/zustand/immer-config.ts`
-- Versioning support in `src/lib/infra/storage/zustand/versioning.ts`
-- Example stores: `useLayoutStore`, `useModalStore`, `useOnboardingStore`
-
-### Route Architecture
-
-Routes are centrally managed in `src/routes/`:
-
-- `src/routes/index.ts` - Main routes aggregator
-- `src/routes/core.ts` - Core navigation routes
-- `src/routes/menubar.ts` - Menubar/sidebar routes
-- `src/routes/account.ts` - Account-related routes
-- `src/routes/admin.ts` - Admin routes (dev-only)
-
-Each route implements the `Route` interface from `src/lib/core/types/routes.ts`.
-
-### Registry Pattern
-
-The codebase uses a registry pattern for extensibility:
-
-1. **Modal Registry** (`src/modals/registry.ts`):
-    - Each feature exports modals from `{feature}/modals.ts`
-    - Central registry aggregates all modals
-    - Type-safe with auto-inferred props: `ModalPropsMap`
-    - Usage: `const { openModal } = useModals(); openModal('modalKey', { props })`
-
-2. **Header Action Registry** (`src/components/layouts/main/header/header-actions/registry.ts`):
-    - Each feature exports header actions from `{feature}/header-actions.ts`
-    - Automatically rendered based on current route
-    - Type-safe with auto-inferred props: `HeaderActionPropsMap`
-
-### Component Organization
-
-- **UI Components**: `src/components/ui/` - Radix UI-based design system
-- **Layout Components**: `src/components/layouts/` - Main layout, headers, footers
-- **Feature Components**: `src/features/{feature}/components/` - Feature-specific components
-- **Feature Pages**: `src/features/{feature}/pages/` - Reusable page sections
-
-### Custom Hooks
-
-Located in `src/hooks/`:
-
-- `useModals` - Modal state management
-- `useMediaQuery` - Responsive breakpoint detection
-- `useKeyboardShortcut` - Keyboard shortcut handling
-- `useHandleFormError` - Form error handling with toast notifications
-
-### Environment Variables
-
-Managed via `@t3-oss/env-nextjs` in `src/env.js`:
-
-- Server-only variables (database URLs, API keys, OAuth secrets)
-- Client-exposed variables (prefixed with `NEXT_PUBLIC_`)
-- Automatic validation with Zod schemas
-- Set `SKIP_ENV_VALIDATION=true` to skip validation (useful for Docker builds)
-
-### Path Aliases
-
-TypeScript path alias configured: `@/*` maps to `src/*`
-
-## Feature Development Guidelines
-
-When adding new features:
-
-1. **Create Feature Directory**: `src/features/{feature-name}/`
-2. **Add tRPC Router**:
-    - Create `api/index.ts` with feature router
-    - Add individual route files as needed (e.g., `api/user.ts`)
-    - Separate business logic into `api/services/*.service.ts`
-    - Add to `src/trpc/server/api/site/root.ts`
-3. **Add Validation**: Create Zod schemas in `lib/validation/*.z.ts`
-4. **Add UI Components**: Create in `components/`
-5. **Add Routes**: Define routes in `src/routes/` if adding navigation
-6. **Add Modals** (if needed):
-    - Export modal definitions from `modals.ts`
-    - Registry auto-includes them from `src/modals/registry.ts`
-7. **Add Header Actions** (if needed):
-    - Export from `header-actions.ts`
-    - Registry auto-includes them from `src/components/layouts/main/header/header-actions/registry.ts`
-
-## Database Schema Changes
-
-1. Modify `src/prisma/site/schema/schema.prisma`
-2. Run `npm run db:migrate:dev` to create and apply migration
-3. Commit both the schema file and the migration files in `src/prisma/site/migrations/`
-4. The Prisma client is automatically regenerated in `src/prisma/site/.generated/`
-
-## Testing Database Connections
-
-The application uses `@prisma/adapter-pg` with connection pooling:
-
-- Pool configuration in `src/trpc/server/site.ts`
-- Max connections: 20
-- Connection timeout: 10s
-- Idle timeout: 30s
-- Vercel Functions integration via `attachDatabasePool()`
-
-## Metadata and SEO
-
-Metadata utilities in `src/lib/metadata/`:
-
-- `config.ts` - Base metadata configuration
-- `structured-data.ts` - JSON-LD schema generation
-- `icon-graphics.ts` - Dynamic icon generation
-- OpenGraph/Twitter images handled in `src/app/` route files
-
-## Error Handling
-
-- Custom error handler: `src/lib/core/errors/error-handler.ts`
-- Error messages: `src/lib/core/errors/error-messages.ts`
-- Form error handling: Use `useHandleFormError` hook
-- tRPC error handling: Defined in `src/trpc/server/api/site/errors.ts`
-
-## Analytics Integration
-
-- Microsoft Clarity: `NEXT_PUBLIC_CLARITY_PROJECT_ID`
-- Google Analytics: `NEXT_PUBLIC_GTAG_ID`
-- Vercel Analytics: Automatically integrated
-- Scripts in `src/scripts/analytics.tsx`
-
-## Port Configuration
-
-- **Dev Server**: <http://localhost:4242>
-- **Prisma Studio**: <http://localhost:5555>
-
-## Important Notes
-
-- Admin routes (`/admin/*`) are only accessible in development mode
-- The app uses standalone output mode for Docker deployments
-- TailwindCSS uses the `tailwind-merge` utility for className composition
-- Images use Next.js Image component with remote pattern allowlist
-- Security headers configured in `next.config.js`
+export default UserNotesPage;
 </file>
 
 </files>

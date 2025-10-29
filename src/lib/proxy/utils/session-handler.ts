@@ -155,7 +155,7 @@ function generateRedirectUrl(req: NextRequest, reason?: string): string {
 	const currentPath = req.nextUrl.pathname + req.nextUrl.search;
 
 	// Don't preserve redirect for auth pages or API routes
-	const authPages = ['/get-started', '/sign-in', '/sign-up', '/auth'];
+	const authPages = ['/get-started'];
 	const isAuthPage = authPages.some((page) => currentPath.startsWith(page));
 	const isApiRoute = currentPath.startsWith('/api');
 
@@ -186,8 +186,6 @@ export function requiresAuthentication(pathname: string): boolean {
 	// Public paths that don't require authentication
 	const publicPaths = [
 		'/get-started',
-		'/sign-in',
-		'/sign-up',
 		'/auth',
 		'/api/auth',
 		'/_next',

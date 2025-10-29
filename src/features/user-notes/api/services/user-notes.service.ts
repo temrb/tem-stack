@@ -18,17 +18,17 @@ export const getNote = async (userId: string) => {
 		site.user.findUnique({
 			where: { id: userId },
 			select: { note: true },
-		})
+		}),
 	);
 
 	if (error) {
 		console.error(
 			'getNote: An unexpected error occurred while fetching user note',
 			error,
-			{ userId }
+			// { userId }
 		);
 		TRPCThrow.internalError(
-			'An unexpected error occurred while fetching your note. Please try again.'
+			'An unexpected error occurred while fetching your note. Please try again.',
 		);
 	}
 
@@ -53,17 +53,17 @@ export const updateNote = async (userId: string, input: UpdateNoteInput) => {
 			where: { id: userId },
 			data: { note },
 			select: { note: true },
-		})
+		}),
 	);
 
 	if (error) {
 		console.error(
 			'updateNote: An unexpected error occurred while updating user note',
 			error,
-			{ userId }
+			// { userId }
 		);
 		TRPCThrow.internalError(
-			'An unexpected error occurred while updating your note. Please try again.'
+			'An unexpected error occurred while updating your note. Please try again.',
 		);
 	}
 

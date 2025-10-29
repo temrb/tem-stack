@@ -1,7 +1,7 @@
+import { site } from '@/trpc/server/site';
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { nextCookies } from 'better-auth/next-js';
-import { site } from '@/trpc/server/site';
 
 // Helper to get env safely
 const getEnv = () => {
@@ -63,6 +63,18 @@ export const auth = betterAuth({
 	plugins: [
 		nextCookies(), // Automatically handles cookies in Server Actions
 	],
+	// logger: {
+	// 	disabled: false,
+	// 	disableColors: false,
+	// 	level: 'error',
+	// 	log: (level, message, ...args) => {
+	// 		// Custom logging implementation
+	// 		console.log(`[${level}] ${message}`, ...args);
+	// 	},
+	// },
+	telemetry: {
+		enabled: false,
+	},
 });
 
 export type Session = typeof auth.$Infer.Session;
