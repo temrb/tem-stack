@@ -4,7 +4,7 @@
 		"maxFileSize": 52428800
 	},
 	"output": {
-		"filePath": "specs/concatenated/project_context.xml",
+		"filePath": "specs/concatenated/feature_context.xml",
 		"style": "xml",
 		"parsableStyle": false,
 		"fileSummary": false,
@@ -27,7 +27,7 @@
 			"includeLogsCount": 50
 		}
 	},
-	"include": ["src", ".claude/CLAUDE.md"],
+	"include": ["src/features/user-notes"],
 	"ignore": {
 		"useGitignore": true,
 		"useDefaultPatterns": true,
