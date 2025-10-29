@@ -106,7 +106,13 @@ const NavMenu: React.FC<NavMenuProps> = ({
 
 	// Validate and memoize items to ensure link items have href
 	const validatedItems = useMemo(() => {
+		const seen = new Set<string>();
 		return items.filter((item) => {
+			if (seen.has(item.id)) {
+				console.warn(`NavMenu: Duplicate id "${item.id}"`);
+				return false;
+			}
+			seen.add(item.id);
 			if (item.type === 'link' && !item.href) {
 				console.warn(
 					`NavMenu: Link item "${item.text}" is missing href`,

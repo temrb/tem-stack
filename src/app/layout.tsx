@@ -1,15 +1,16 @@
 import MainLayout from '@/components/layouts/main';
 import env from '@/env';
-import { Providers } from '@/providers';
-import { Analytics } from '@/scripts';
 import {
 	createOrganizationStructuredData,
 	createWebSiteStructuredData,
 } from '@/lib/metadata/structured-data';
+import { Providers } from '@/providers';
+import { Analytics } from '@/scripts';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 // @ts-ignore - allow side-effect global CSS import without declarations
+import { useMemo } from 'react';
 import '../styles/globals.css';
 
 const hubot = localFont({
@@ -93,8 +94,11 @@ export default function RootLayout({
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
-	const organizationSchema = createOrganizationStructuredData();
-	const websiteSchema = createWebSiteStructuredData();
+	const organizationSchema = useMemo(
+		() => createOrganizationStructuredData(),
+		[],
+	);
+	const websiteSchema = useMemo(() => createWebSiteStructuredData(), []);
 
 	return (
 		<html lang='en' suppressHydrationWarning>

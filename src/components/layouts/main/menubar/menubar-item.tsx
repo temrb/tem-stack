@@ -1,5 +1,5 @@
+// src/components/layouts/main/menubar/menubar-item.tsx
 'use client';
-
 import { Button } from '@/components/ui/button';
 import { useMediaQuery } from '@/hooks';
 import type { Route } from '@/lib/core/types/routes';
@@ -18,30 +18,25 @@ const MenubarItem = (props: Route) => {
 		onboardingCompleteRequired,
 		icon: Icon,
 	} = props;
-
 	const currentPath = usePathname();
 	const { setMenubar } = useLayoutStore();
 	const { isMobile } = useMediaQuery();
 
 	const navigationPath = displayPath || path;
-
-	// Check if this route is active
 	const isActive =
 		currentPath === navigationPath ||
-		(navigationPath !== '/' && currentPath.startsWith(navigationPath));
+		(navigationPath !== '/' &&
+			currentPath.startsWith(navigationPath + '/'));
 
-	// Close menubar on mobile after click
 	const handleMenubarClose = () => {
 		if (isMobile) {
 			setMenubar(false);
 		}
 	};
 
-	// Base styles for all items
 	const baseStyles =
 		'flex w-full items-center justify-start gap-3 md:px-3 md:py-1 p-4 text-sm font-medium text-muted-foreground md:rounded-sm';
 
-	// Render disabled/coming soon items
 	if (status) {
 		return (
 			<div
@@ -62,17 +57,17 @@ const MenubarItem = (props: Route) => {
 		);
 	}
 
-	// Render active navigation link
 	return (
 		<Button
 			variant='ghost'
-			href={navigationPath}
+			href={isActive ? undefined : navigationPath}
 			onClick={handleMenubarClose}
 			aria-label={displayName}
 			aria-current={isActive ? 'page' : undefined}
+			disabled={isActive}
 			className={cn(
 				baseStyles,
-				isActive && 'bg-foreground text-background',
+				isActive && 'pointer-events-none bg-foreground text-background',
 			)}
 			icon={
 				Icon && (
@@ -83,8 +78,8 @@ const MenubarItem = (props: Route) => {
 				)
 			}
 			iconPosition='left'
-			disableWhilePending={true} // Explicitly enable pending state handling
-			prefetch={false} // Disable prefetch to see pending state clearly
+			disableWhilePending={true}
+			prefetch={false}
 		>
 			{displayName}
 		</Button>

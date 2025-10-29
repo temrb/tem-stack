@@ -933,9 +933,12 @@ async function main() {
 	}
 
 	// Handle removal mode
-	const removeFeatureName = args.remove || (args._[0] && args.r);
-	if (removeFeatureName || args.r) {
-		const featureName = typeof removeFeatureName === 'string' ? removeFeatureName : args._[0];
+	const removeArg = args.remove ?? args.r;
+	if (removeArg !== undefined) {
+		const featureName =
+			typeof removeArg === 'string'
+				? removeArg
+				: (args._ && typeof args._[0] === 'string' ? args._[0] : undefined);
 
 		if (!featureName) {
 			log.error('Feature name is required for removal. Usage: npm run create -- --remove <feature-name>');
