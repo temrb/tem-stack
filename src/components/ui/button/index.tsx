@@ -5,10 +5,10 @@ import {
 	formatShortcut,
 	useKeyboardShortcut,
 } from '@/hooks/useKeyboardShortcut';
+import { useSession } from '@/lib/auth/auth-client';
 import { validateAriaProps } from '@/lib/core/types/aria-utils';
 import { cn } from '@/lib/core/utils';
 import { Slot } from '@radix-ui/react-slot';
-import { useSession } from '@/lib/auth/auth-client';
 import { useLinkStatus } from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -122,17 +122,39 @@ const LinkButton = ({
 	ref,
 	restProps,
 }: LinkButtonProps) => {
+	const { pending } = useLinkStatus();
+
+	// Calculate if the link button should be disabled
+	const combinedLoading = loading || pending;
+	const isLinkDisabled =
+		disabled ||
+		(disableWhilePending && pending) ||
+		combinedLoading ||
+		isAuthRedirecting;
+
 	return (
 		<Link
 			href={href}
 			newTab={newTab}
 			prefetch={prefetch}
 			aria-label={restProps['aria-label'] as string | undefined}
+			aria-disabled={isLinkDisabled ? 'true' : undefined}
 			onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+				// Prevent navigation when disabled
+				if (isLinkDisabled) {
+					e.preventDefault();
+					e.stopPropagation();
+					return;
+				}
 				if (handleAuthRedirect(e)) return;
 				onClick?.(e as unknown as React.MouseEvent<HTMLButtonElement>);
 			}}
-			className={cn(buttonVariants({ variant, size }), className)}
+			className={cn(
+				buttonVariants({ variant, size }),
+				className,
+				isLinkDisabled &&
+					'pointer-events-none cursor-not-allowed opacity-60',
+			)}
 		>
 			<LinkButtonContent
 				loading={loading}
