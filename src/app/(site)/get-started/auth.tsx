@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Socials } from '@/lib/assets/svg/socials';
 import { signIn } from '@/lib/auth/auth-client';
+import { handleTRPCError } from '@/lib/core/errors/error-handler';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
@@ -27,6 +28,8 @@ const Auth = () => {
 									provider: 'google',
 									callbackURL: redirectTo || '/',
 								});
+							} catch (error) {
+								handleTRPCError(error, 'Sign-in failed. Please try again.');
 							} finally {
 								setLoading(false);
 							}

@@ -22,7 +22,7 @@ export const useAuthCheck = () => {
 
 	return useCallback(
 		(action: () => void) => {
-			if (!session || isPending) {
+			if (!isPending && !session) {
 				const url = new URL('/get-started', window.location.origin);
 				url.searchParams.set('redirectTo', window.location.pathname);
 				router.push(url.toString());

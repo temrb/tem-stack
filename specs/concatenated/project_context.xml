@@ -1,4 +1,6 @@
 <directory_structure>
+.claude/
+  CLAUDE.md
 src/
   app/
     (site)/
@@ -253,97 +255,6 @@ src/
 <files>
 This section contains the contents of the repository's files.
 
-<file path="src/app/api/auth/[...all]/route.ts">
-import { auth } from '@/lib/auth/auth';
-import { toNextJsHandler } from 'better-auth/next-js';
-export const { POST, GET } = toNextJsHandler(auth);
-export const runtime = 'nodejs';
-</file>
-
-<file path="src/lib/auth/auth-client.ts">
-import { inferAdditionalFields } from 'better-auth/client/plugins';
-import { createAuthClient } from 'better-auth/react';
-import type { auth } from './auth';
-export const authClient = createAuthClient({
-	baseURL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4242',
-	plugins: [
-		inferAdditionalFields<typeof auth>(),
-	],
-});
-export const { useSession, signIn, signOut, getSession } = authClient;
-export type ClientSession = typeof authClient.$Infer.Session;
-</file>
-
-<file path="src/lib/auth/auth.ts">
-import { betterAuth } from 'better-auth';
-import { prismaAdapter } from 'better-auth/adapters/prisma';
-import { nextCookies } from 'better-auth/next-js';
-import { site } from '@/trpc/server/site';
-const getEnv = () => {
-	try {
-		return require('@/env').default;
-	} catch {
-		return process.env;
-	}
-};
-const env = getEnv();
-export const auth = betterAuth({
-	database: prismaAdapter(site, {
-		provider: 'postgresql',
-	}),
-	emailAndPassword: {
-		enabled: false,
-	},
-	socialProviders: {
-		google: {
-			clientId:
-				env.GOOGLE_CLIENT_ID ||
-				(process.env.GOOGLE_CLIENT_ID as string),
-			clientSecret:
-				env.GOOGLE_CLIENT_SECRET ||
-				(process.env.GOOGLE_CLIENT_SECRET as string),
-		},
-	},
-	user: {
-		additionalFields: {
-			role: {
-				type: 'string',
-				required: false,
-				defaultValue: 'USER',
-				input: false,
-			},
-			alias: {
-				type: 'string',
-				required: false,
-			},
-			onboardingCompleted: {
-				type: 'boolean',
-				required: false,
-				defaultValue: false,
-			},
-		},
-	},
-	session: {
-		expiresIn: 60 * 60 * 24 * 7,
-		updateAge: 60 * 60 * 24,
-		cookieCache: {
-			enabled: true,
-			maxAge: 60 * 5,
-		},
-	},
-	plugins: [
-		nextCookies(),
-	],
-});
-export type Session = typeof auth.$Infer.Session;
-</file>
-
-<file path="src/lib/auth/types.ts">
-import type { auth } from './auth';
-export type Session = typeof auth.$Infer.Session;
-export type AuthUser = Session['user'];
-</file>
-
 <file path="src/app/(site)/(home)/page.tsx">
 import type { Metadata } from 'next';
 export const metadata: Metadata = {
@@ -409,54 +320,6 @@ const Page = () => {
 export default Page;
 </file>
 
-<file path="src/app/(site)/get-started/auth.tsx">
-'use client';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Socials } from '@/lib/assets/svg/socials';
-import { signIn } from '@/lib/auth/auth-client';
-import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
-const Auth = () => {
-	const searchParams = useSearchParams();
-	const redirectTo = searchParams.get('redirectTo');
-	const [loading, setLoading] = useState(false);
-	return (
-		<div className='relative flex h-full w-full items-center justify-center p-2'>
-			<Card className='border mx-auto w-full max-w-md shadow-lg'>
-				<CardContent className='mx-auto max-w-sm space-y-3 py-6'>
-					<Button
-						disabled={loading}
-						className='h-14 w-full'
-						variant='secondary'
-						onClick={async () => {
-							setLoading(true);
-							try {
-								await signIn.social({
-									provider: 'google',
-									callbackURL: redirectTo || '/',
-								});
-							} finally {
-								setLoading(false);
-							}
-						}}
-						aria-label='Continue with Google'
-					>
-						<span className='flex w-full flex-row items-center justify-center space-x-2'>
-							<Socials.Google className='size-6' />
-							<p className='text-sm font-normal tracking-wide'>
-								Continue with Google
-							</p>
-						</span>
-					</Button>
-				</CardContent>
-			</Card>
-		</div>
-	);
-};
-export default Auth;
-</file>
-
 <file path="src/app/(site)/get-started/page.tsx">
 import { cn } from '@/lib/core/utils';
 import Auth from './auth';
@@ -480,6 +343,13 @@ const Landing = () => {
 	);
 };
 export default Landing;
+</file>
+
+<file path="src/app/api/auth/[...all]/route.ts">
+import { auth } from '@/lib/auth/auth';
+import { toNextJsHandler } from 'better-auth/next-js';
+export const { POST, GET } = toNextJsHandler(auth);
+export const runtime = 'nodejs';
 </file>
 
 <file path="src/app/api/trpc/[trpc]/route.ts">
@@ -736,298 +606,6 @@ const ActionLayout = ({ children }: Readonly<ActionLayoutProps>) => {
 	);
 };
 export default ActionLayout;
-</file>
-
-<file path="src/components/layouts/main/header/header-action.tsx">
-'use client';
-import SuspenseWrapper from '@/components/suspense-wrapper';
-import Logo from '@/components/ui/logo';
-import { normalizeRouteMatcher } from '@/lib/ui/header-actions';
-import { useSession } from '@/lib/auth/auth-client';
-import { usePathname } from 'next/navigation';
-import ActionLayout from './header-actions/action-layout';
-import { headerActionRegistry } from './header-actions/registry';
-const HeaderAction = () => {
-	const { data: session, isPending } = useSession();
-	const authenticated = !isPending && !!session;
-	const pathname = usePathname();
-	if (pathname.startsWith('/get-started')) {
-		return <Logo textOnly style='solid' className='ml-auto' />;
-	}
-	if (authenticated) {
-		for (const [key, definition] of Object.entries(headerActionRegistry)) {
-			const routeMatcher = normalizeRouteMatcher(
-				definition.config.routeMatcher,
-			);
-			if (routeMatcher(pathname)) {
-				const { Component } = definition;
-				return (
-					<SuspenseWrapper>
-						<ActionLayout>
-							<Component />
-						</ActionLayout>
-					</SuspenseWrapper>
-				);
-			}
-		}
-	}
-};
-export default HeaderAction;
-</file>
-
-<file path="src/components/layouts/main/menubar/auth-action.tsx">
-'use client';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import SupportButton from '@/components/ui/button/support-button';
-import NavMenu from '@/components/ui/nav-menu';
-import { signOut, useSession } from '@/lib/auth/auth-client';
-import { useRouter } from 'next/navigation';
-import { LuBolt, LuLogOut, LuShield } from 'react-icons/lu';
-const AuthAction = () => {
-	const { data: session, isPending } = useSession();
-	const router = useRouter();
-	const admin = session?.user?.role === 'ADMIN';
-	const handleSignOut = async () => {
-		await signOut({
-			fetchOptions: {
-				onSuccess: () => {
-					router.push('/');
-				},
-			},
-		});
-	};
-	if (!isPending && session) {
-		return (
-			<>
-				<NavMenu
-					trigger={
-						<button
-							className='cursor-pointer'
-							aria-label='Open user menu'
-						>
-							<Avatar className='size-7'>
-								<AvatarImage
-									src={
-										session?.user?.image ??
-										'/default-avatar.png'
-									}
-									referrerPolicy='no-referrer'
-									className='pointer-events-none'
-									alt={
-										session?.user?.name
-											? `${session.user.name}'s avatar`
-											: 'User avatar'
-									}
-								/>
-								<AvatarFallback>
-									{session?.user?.name
-										? session.user.name
-												.slice(0, 2)
-												.toUpperCase()
-										: 'NA'}
-								</AvatarFallback>
-							</Avatar>
-						</button>
-					}
-					items={[
-						...(admin
-							? [
-									{
-										id: 'admin',
-										type: 'link' as const,
-										text: 'Admin',
-										href: '/admin',
-										icon: (
-											<LuShield className='size-5 md:size-[1.15rem]' />
-										),
-									},
-								]
-							: []),
-						{
-							id: 'settings',
-							type: 'link',
-							text: 'Account',
-							href: '/settings',
-							icon: (
-								<LuBolt className='size-5 md:size-[1.15rem]' />
-							),
-						},
-						{
-							id: 'sign-out',
-							type: 'button',
-							text: 'Sign Out',
-							onClick: () => { handleSignOut().catch(console.error); },
-							icon: (
-								<LuLogOut className='size-5 md:size-[1.15rem]' />
-							),
-						},
-					]}
-				/>
-				<SupportButton size='icon' variant='ghost' />
-			</>
-		);
-	}
-};
-export default AuthAction;
-</file>
-
-<file path="src/components/layouts/main/menubar/index.tsx">
-'use client';
-import SuspenseWrapper from '@/components/suspense-wrapper';
-import { Button } from '@/components/ui/button';
-import type { Route } from '@/lib/core/types/routes';
-import { cn } from '@/lib/core/utils';
-import { routes } from '@/routes';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
-import { motion } from 'framer-motion';
-import { useSession } from '@/lib/auth/auth-client';
-import { usePathname } from 'next/navigation';
-import { lazy, useCallback } from 'react';
-import { LuPanelLeftClose, LuX } from 'react-icons/lu';
-import MenubarItem from './menubar-item';
-const AuthAction = lazy(() => import('./auth-action'));
-const UnAuthAction = lazy(() => import('./unauth-action'));
-const menubarVariants = {
-	hidden: {
-		opacity: '0%',
-		transition: {
-			duration: 0.3,
-		},
-	},
-	visible: {
-		opacity: '100%',
-		transition: {
-			duration: 0.3,
-			staggerChildren: 0.05,
-			delayChildren: 0.1,
-		},
-	},
-	exit: {
-		opacity: '0%',
-		transition: {
-			duration: 0.3,
-		},
-	},
-};
-const menuItemContainerVariants = {
-	hidden: { opacity: 0 },
-	visible: {
-		opacity: 1,
-		transition: {
-			staggerChildren: 0.03,
-		},
-	},
-};
-const menuItemVariants = {
-	hidden: {
-		opacity: 0,
-	},
-	visible: {
-		opacity: 1,
-	},
-};
-const Menubar = () => {
-	const { menubar, setMenubar } = useLayoutStore();
-	const currentPath = usePathname();
-	const { data: session, isPending } = useSession();
-	const features = routes.filter((route: Route) => {
-		if (route.category !== 'feature') return false;
-		return route.type !== 'admin';
-	});
-	const primaryNavRoutes = routes.filter((route: Route) => route.primaryNav);
-	const renderAuthAction = useCallback(() => {
-		return (
-			<SuspenseWrapper>
-				{!isPending && session ? (
-					<AuthAction />
-				) : (
-					<UnAuthAction />
-				)}
-			</SuspenseWrapper>
-		);
-	}, [session, isPending]);
-	return (
-		<motion.aside
-			initial='hidden'
-			animate='visible'
-			exit='exit'
-			variants={menubarVariants}
-			className='flex h-full w-full flex-col-reverse md:border-r md:w-52 md:flex-col lg:w-64'
-		>
-			{}
-			<div className='border-b z-30 flex h-16 w-full items-center justify-between border-border px-4'>
-				<Button
-					variant='ghost'
-					size='icon'
-					onClick={() => setMenubar(!menubar)}
-					aria-label='Close menu'
-				>
-					<LuX className='flex size-4 md:hidden' />
-					<LuPanelLeftClose className='hidden size-4 md:flex' />
-				</Button>
-				<div className='flex flex-row items-center space-x-1'>
-					{primaryNavRoutes.map((route: Route) => {
-						const isActive =
-							currentPath === route.displayPath ||
-							(route.displayPath !== '/' &&
-								currentPath.startsWith(route.displayPath));
-						const Icon = route.icon;
-						return (
-							<Button
-								key={route.path}
-								href={isActive ? undefined : route.displayPath}
-								variant={isActive ? 'secondary' : 'ghost'}
-								size='icon'
-								className={cn(
-									currentPath.startsWith(route.displayPath) &&
-										route.displayPath !== '/' &&
-										'hidden md:flex',
-									isActive &&
-										'pointer-events-none opacity-50',
-								)}
-								disabled={isActive}
-								icon={
-									Icon ? (
-										<Icon
-											className='size-4'
-											aria-hidden='true'
-										/>
-									) : undefined
-								}
-								aria-label={route.displayName}
-							/>
-						);
-					})}
-				</div>
-			</div>
-			{}
-			<div className='flex h-[calc(100dvh-8rem)] w-full flex-col overflow-y-auto overflow-x-hidden bg-background p-4 scrollbar-hide'>
-				{
-}
-				<motion.div
-					className='flex-1 space-y-2'
-					variants={menuItemContainerVariants}
-					initial='hidden'
-					animate='visible'
-				>
-					{features.map((route: Route) => (
-						<motion.div
-							key={route.path}
-							variants={menuItemVariants}
-						>
-							<MenubarItem {...route} />
-						</motion.div>
-					))}
-				</motion.div>
-			</div>
-			{}
-			<div className='border-b flex h-16 items-center justify-between px-4 md:border-t'>
-				{renderAuthAction()}
-			</div>
-		</motion.aside>
-	);
-};
-export default Menubar;
 </file>
 
 <file path="src/components/layouts/main/menubar/menubar-item.tsx">
@@ -1509,337 +1087,6 @@ const getSpinnerSize = (
 	}
 };
 export default getSpinnerSize;
-</file>
-
-<file path="src/components/ui/button/index.tsx">
-'use client';
-import { useMediaQuery } from '@/hooks';
-import {
-	formatShortcut,
-	useKeyboardShortcut,
-} from '@/hooks/useKeyboardShortcut';
-import { validateAriaProps } from '@/lib/core/types/aria-utils';
-import { cn } from '@/lib/core/utils';
-import { Slot } from '@radix-ui/react-slot';
-import { useSession } from '@/lib/auth/auth-client';
-import { useLinkStatus } from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import type { ReactNode } from 'react';
-import React, { useEffect } from 'react';
-import Link from '../link';
-import LoadingSpinner from '../loading/loading-spinner';
-import type { ButtonProps } from './lib/types';
-import { buttonVariants } from './lib/utils/button-variants';
-import getSpinnerSize from './lib/utils/get-spinner-size';
-interface LinkButtonContentProps {
-	loading: boolean;
-	disabled?: boolean;
-	disableWhilePending?: boolean;
-	isAuthRedirecting: boolean;
-	asChild: boolean;
-	className?: string;
-	pendingClassName?: string;
-	disabledTooltip?: React.ReactNode;
-	renderContent: (isLoadingOverride?: boolean) => ReactNode;
-	ref?: React.Ref<HTMLButtonElement>;
-	restProps: Record<string, unknown>;
-}
-const LinkButtonContent = ({
-	loading,
-	disabled,
-	disableWhilePending,
-	isAuthRedirecting,
-	asChild,
-	className,
-	pendingClassName,
-	disabledTooltip,
-	renderContent,
-	ref,
-	restProps,
-}: LinkButtonContentProps) => {
-	const { pending } = useLinkStatus();
-	const combinedLoading = loading || pending;
-	const combinedDisabled =
-		disabled ||
-		(disableWhilePending && pending) ||
-		combinedLoading ||
-		isAuthRedirecting;
-	const Comp = asChild ? Slot : 'button';
-	return (
-		<Comp
-			ref={ref}
-			disabled={combinedDisabled}
-			title={
-				disabledTooltip && combinedDisabled
-					? String(disabledTooltip)
-					: undefined
-			}
-			className={cn(
-				asChild ? className : '',
-				pending && (pendingClassName || 'cursor-progress'),
-			)}
-			{...restProps}
-		>
-			{renderContent(combinedLoading)}
-		</Comp>
-	);
-};
-interface LinkButtonProps {
-	href: string;
-	newTab?: boolean;
-	prefetch?: boolean | null;
-	loading: boolean;
-	disabled?: boolean;
-	disableWhilePending?: boolean;
-	isAuthRedirecting: boolean;
-	asChild: boolean;
-	handleAuthRedirect: (event: React.MouseEvent) => boolean;
-	onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
-	variant?: ButtonProps['variant'];
-	size?: ButtonProps['size'];
-	className?: string;
-	pendingClassName?: string;
-	disabledTooltip?: React.ReactNode;
-	renderContent: (isLoadingOverride?: boolean) => ReactNode;
-	ref?: React.Ref<HTMLButtonElement>;
-	restProps: Record<string, unknown>;
-}
-const LinkButton = ({
-	href,
-	newTab,
-	prefetch,
-	loading,
-	disabled,
-	disableWhilePending,
-	isAuthRedirecting,
-	asChild,
-	handleAuthRedirect,
-	onClick,
-	variant,
-	size,
-	className,
-	pendingClassName,
-	disabledTooltip,
-	renderContent,
-	ref,
-	restProps,
-}: LinkButtonProps) => {
-	return (
-		<Link
-			href={href}
-			newTab={newTab}
-			prefetch={prefetch}
-			aria-label={restProps['aria-label'] as string | undefined}
-			onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
-				if (handleAuthRedirect(e)) return;
-				onClick?.(e as unknown as React.MouseEvent<HTMLButtonElement>);
-			}}
-			className={cn(buttonVariants({ variant, size }), className)}
-		>
-			<LinkButtonContent
-				loading={loading}
-				disabled={disabled}
-				disableWhilePending={disableWhilePending}
-				isAuthRedirecting={isAuthRedirecting}
-				asChild={asChild}
-				className={className}
-				pendingClassName={pendingClassName}
-				disabledTooltip={disabledTooltip}
-				renderContent={renderContent}
-				ref={ref}
-				restProps={restProps}
-			/>
-		</Link>
-	);
-};
-const Button = (
-	props: ButtonProps & { ref?: React.Ref<HTMLButtonElement> },
-) => {
-	const {
-		className,
-		variant,
-		size,
-		requireAuth = false,
-		loading = false,
-		children,
-		onClick,
-		icon,
-		iconPosition = 'left',
-		shortcut,
-		disabledTooltip,
-		disabled,
-		asChild = false,
-		text,
-		textWrapperClassName,
-		count,
-		href,
-		newTab,
-		pendingClassName,
-		disableWhilePending,
-		prefetch,
-		authRedirectFallback,
-		ref,
-		...restProps
-	} = props;
-	validateAriaProps(restProps, 'Button');
-	const { data: session, isPending } = useSession();
-	const router = useRouter();
-	const pathname = usePathname();
-	const { isMobile } = useMediaQuery();
-	const isAuthenticated = !isPending && !!session;
-	const [isAuthRedirecting, setIsAuthRedirecting] = React.useState(false);
-	const isDisabled = disabled || loading || isAuthRedirecting;
-	const Comp = asChild ? Slot : 'button';
-	useEffect(() => {
-		if (
-			process.env.NODE_ENV === 'development' &&
-			size === 'icon' &&
-			!restProps['aria-label'] &&
-			!restProps['aria-labelledby']
-		) {
-			console.warn(
-				`Accessibility Warning: An icon-only button should have an 'aria-label' or 'aria-labelledby' prop for screen readers.`,
-			);
-		}
-	}, [size, restProps]);
-	const getAuthRedirectUrl = React.useCallback(() => {
-		const destination = authRedirectFallback || href || pathname;
-		const url = new URL('/get-started', window.location.origin);
-		url.searchParams.set('redirectTo', destination);
-		return url.toString();
-	}, [authRedirectFallback, href, pathname]);
-	const handleAuthRedirect = React.useCallback(
-		(event: React.MouseEvent) => {
-			if (requireAuth && !isAuthenticated) {
-				event.preventDefault();
-				event.stopPropagation();
-				setIsAuthRedirecting(true);
-				router.push(getAuthRedirectUrl());
-				return true;
-			}
-			return false;
-		},
-		[requireAuth, isAuthenticated, router, getAuthRedirectUrl],
-	);
-	const handleClick = React.useCallback(
-		(event: React.MouseEvent<HTMLButtonElement>) => {
-			if (handleAuthRedirect(event)) return;
-			onClick?.(event);
-		},
-		[handleAuthRedirect, onClick],
-	);
-	useKeyboardShortcut(
-		shortcut || '',
-		() => {
-			if (!isDisabled && onClick) {
-				const syntheticEvent = new MouseEvent('click', {
-					bubbles: true,
-					cancelable: true,
-				}) as unknown as React.MouseEvent<HTMLButtonElement>;
-				handleClick(syntheticEvent);
-			}
-		},
-		{
-			enabled: !!shortcut && !isDisabled && !isMobile,
-		},
-	);
-	const renderContent = (isLoadingOverride?: boolean): ReactNode => {
-		const hasChildren = children !== undefined && children !== null;
-		const content = hasChildren ? children : text;
-		const hasContent = content !== undefined && content !== null;
-		const isCurrentlyLoading = isLoadingOverride ?? loading;
-		const iconSlot = isCurrentlyLoading ? (
-			<LoadingSpinner
-				size={getSpinnerSize(size, icon)}
-				textNormal={true}
-			/>
-		) : (
-			icon
-		);
-		if (iconSlot && !hasContent && !shortcut) {
-			return iconSlot;
-		}
-		if (!iconSlot && !shortcut) {
-			return hasContent ? (
-				textWrapperClassName ? (
-					<span className={textWrapperClassName}>{content}</span>
-				) : (
-					content
-				)
-			) : null;
-		}
-		return (
-			<div className='flex items-center justify-between gap-2'>
-				<div className='flex items-center gap-2'>
-					{iconSlot && iconPosition === 'left' && (
-						<span className='shrink-0'>{iconSlot}</span>
-					)}
-					{hasContent && (
-						<span className={cn('truncate', textWrapperClassName)}>
-							{content}
-						</span>
-					)}
-					{iconSlot && iconPosition === 'right' && (
-						<span className='shrink-0'>{iconSlot}</span>
-					)}
-					{count !== undefined && count > 0 && (
-						<span className='ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary-foreground text-[10px] text-primary'>
-							{count}
-						</span>
-					)}
-				</div>
-				{shortcut && !isMobile && (
-					<kbd className='border pointer-events-none hidden h-5 select-none items-center gap-1 rounded bg-muted px-1.5 font-mono text-xs text-muted-foreground opacity-100 md:inline-flex'>
-						{formatShortcut(shortcut)}
-					</kbd>
-				)}
-			</div>
-		);
-	};
-	if (href) {
-		return (
-			<LinkButton
-				href={href}
-				newTab={newTab}
-				prefetch={prefetch}
-				loading={loading}
-				disabled={disabled}
-				disableWhilePending={disableWhilePending}
-				isAuthRedirecting={isAuthRedirecting}
-				asChild={asChild}
-				handleAuthRedirect={handleAuthRedirect}
-				onClick={onClick}
-				variant={variant}
-				size={size}
-				className={className}
-				pendingClassName={pendingClassName}
-				disabledTooltip={disabledTooltip}
-				renderContent={renderContent}
-				ref={ref}
-				restProps={restProps}
-			/>
-		);
-	}
-	return (
-		<Comp
-			className={cn(buttonVariants({ variant, size }), className)}
-			ref={ref}
-			disabled={isDisabled}
-			onClick={handleClick}
-			aria-busy={loading ? 'true' : undefined}
-			title={
-				disabledTooltip && isDisabled
-					? String(disabledTooltip)
-					: undefined
-			}
-			{...restProps}
-		>
-			{renderContent()}
-		</Comp>
-	);
-};
-Button.displayName = 'Button';
-export { Button, buttonVariants };
 </file>
 
 <file path="src/components/ui/button/support-button.tsx">
@@ -2529,68 +1776,6 @@ const LogoItem = ({ style, size }: LogoProps) => {
 };
 </file>
 
-<file path="src/components/ui/nav-menu.tsx">
-'use client';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { useRouter } from 'next/navigation';
-import type { ReactNode } from 'react';
-type MenuItem =
-	| {
-			id: string;
-			type: 'link';
-			text: string;
-			href: string;
-			icon?: ReactNode;
-	  }
-	| {
-			id: string;
-			type: 'button';
-			text: string;
-			onClick: () => void;
-			icon?: ReactNode;
-	  };
-interface NavMenuProps {
-	trigger: ReactNode;
-	items: MenuItem[];
-}
-const NavMenu = ({ trigger, items }: NavMenuProps) => {
-	const router = useRouter();
-	const handleItemClick = (item: MenuItem) => {
-		if (item.type === 'link') {
-			router.push(item.href);
-		} else if (item.type === 'button') {
-			item.onClick();
-		}
-	};
-	return (
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
-			<DropdownMenu.Portal>
-				<DropdownMenu.Content
-					className='z-50 min-w-[12rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md'
-					sideOffset={5}
-					align='end'
-				>
-					{items.map((item, index) => (
-						<DropdownMenu.Item
-							key={item.id}
-							className='relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50'
-							onSelect={() => handleItemClick(item)}
-						>
-							{item.icon && (
-								<span className='flex-shrink-0'>{item.icon}</span>
-							)}
-							<span>{item.text}</span>
-						</DropdownMenu.Item>
-					))}
-				</DropdownMenu.Content>
-			</DropdownMenu.Portal>
-		</DropdownMenu.Root>
-	);
-};
-export default NavMenu;
-</file>
-
 <file path="src/components/ui/select.tsx">
 'use client';
 import { type AriaProps, validateAriaProps } from '@/lib/core/types/aria-utils';
@@ -3209,211 +2394,6 @@ export const generalRouter = createTRPCRouter({
 });
 </file>
 
-<file path="src/features/settings/components/modals/delete-account-modal.tsx">
-'use client';
-import {
-	Form,
-	FormControl,
-	FormDescription,
-	FormField,
-	FormItem,
-	FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { DeleteAccountFormSchema } from '@/features/settings/lib/validation/user.z';
-import { createFormErrorHandler } from '@/hooks/useHandleFormError';
-import {
-	handleTRPCError,
-	handleTRPCSuccess,
-} from '@/lib/core/errors/error-handler';
-import tryCatch from '@/lib/core/utils/try-catch';
-import { ModalFooterActions } from '@/modals/modal-footer-actions';
-import ModalLayout from '@/modals/modal-layout';
-import { api } from '@/trpc/react';
-import { useModalStore } from '@/zustand/ui/useModalStore';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useSession, signOut } from '@/lib/auth/auth-client';
-import { useRouter } from 'next/navigation';
-import React, { useCallback, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import type { z } from 'zod';
-const DeleteAccountModal: React.FC = () => {
-	const { data: session } = useSession();
-	const { hide } = useModalStore();
-	const router = useRouter();
-	const [isDeleting, setIsDeleting] = useState(false);
-	const form = useForm<z.infer<typeof DeleteAccountFormSchema>>({
-		resolver: zodResolver(DeleteAccountFormSchema),
-		defaultValues: { delete: '', email: '' },
-		mode: 'onSubmit',
-	});
-	const deleteAccountMutation =
-		api.settings.general.deleteAccount.useMutation({
-			onMutate: () => setIsDeleting(true),
-			onSettled: () => setIsDeleting(false),
-		});
-	const handleSignOut = useCallback(async () => {
-		const { error } = await tryCatch(
-			signOut({
-				fetchOptions: {
-					onSuccess: () => {
-						router.push('/');
-					},
-				},
-			}),
-		);
-		if (error) {
-			console.error('Sign out failed', error);
-			handleTRPCError(
-				error,
-				'Unable to sign out. Please close the browser.',
-			);
-		}
-	}, [router]);
-	const onSubmit = useCallback(
-		async (values: z.infer<typeof DeleteAccountFormSchema>) => {
-			if (isDeleting) return;
-			if (
-				values.email.toLowerCase() !==
-				session?.user?.email?.toLowerCase()
-			) {
-				handleTRPCError(
-					new Error('Email does not match your account email'),
-				);
-				return;
-			}
-			const { data: result, error } = await tryCatch(
-				deleteAccountMutation.mutateAsync(values),
-			);
-			if (error) {
-				handleTRPCError(error, 'Failed to delete account');
-				return;
-			}
-			if (result) {
-				handleTRPCSuccess('Account deleted successfully!', result);
-				hide();
-				await handleSignOut();
-			}
-		},
-		[
-			deleteAccountMutation,
-			handleSignOut,
-			isDeleting,
-			session?.user?.email,
-			hide,
-		],
-	);
-	const formErrorHandler =
-		createFormErrorHandler<z.infer<typeof DeleteAccountFormSchema>>();
-	if (!session?.user) return null;
-	const handleSubmit = () => {
-		void form.handleSubmit(onSubmit, formErrorHandler)();
-	};
-	const footerActions = (
-		<ModalFooterActions
-			actions={[
-				{
-					label: 'Cancel',
-					onClick: () => hide(),
-					variant: 'none',
-					disabled: isDeleting,
-					'aria-label': 'Cancel and close modal',
-					priority: 'secondary',
-				},
-				{
-					label: 'Delete Account',
-					onClick: handleSubmit,
-					variant: 'destructive',
-					disabled: isDeleting,
-					loading: isDeleting,
-					'aria-label': 'Delete account permanently',
-					priority: 'primary',
-				},
-			]}
-		/>
-	);
-	return (
-		<ModalLayout
-			title='Delete Account'
-			description='This action is irreversible. Confirm your account deletion by typing "confirm delete account" and entering your account email.'
-			displayImage={{
-				type: 'image',
-				src: session?.user?.image || '',
-				alt:
-					(session?.user?.name ?? 'Avatar').replaceAll(' ', '') ||
-					'Avatar',
-			}}
-			footer={footerActions}
-		>
-			<Form {...form}>
-				<form onSubmit={(e) => e.preventDefault()}>
-					<div className='flex flex-col space-y-4 p-4 text-left sm:px-20 md:px-14'>
-						<FormField
-							control={form.control}
-							name='delete'
-							render={({ field }) => (
-								<FormItem className='space-y-1'>
-									<FormDescription className='text-pretty text-left text-xs tracking-normal sm:text-sm'>
-										Please type{' '}
-										<code className='text-normal py-.5 rounded-sm bg-muted px-1 font-semibold tracking-tighter'>
-											confirm delete account
-										</code>
-									</FormDescription>
-									<FormControl>
-										<Input
-											aria-label='Delete Account'
-											type='text'
-											{...field}
-											autoComplete='off'
-											autoFocus
-											disabled={isDeleting}
-											aria-describedby='delete-account-description'
-											aria-invalid={
-												!!form.formState.errors.delete
-											}
-										/>
-									</FormControl>
-									<FormMessage />
-								</FormItem>
-							)}
-						/>
-						<FormField
-							control={form.control}
-							name='email'
-							render={({ field }) => (
-								<FormItem className='space-y-1'>
-									<FormDescription className='text-pretty text-left text-xs tracking-normal sm:text-sm'>
-										Please enter your{' '}
-										<code className='text-normal py-.5 rounded-sm bg-muted px-1 font-semibold tracking-tighter'>
-											account email
-										</code>
-									</FormDescription>
-									<FormControl>
-										<Input
-											aria-label='Email'
-											type='email'
-											{...field}
-											autoComplete='email'
-											disabled={isDeleting}
-											aria-describedby='email-confirmation-description'
-											aria-invalid={
-												!!form.formState.errors.email
-											}
-										/>
-									</FormControl>
-									<FormMessage />
-								</FormItem>
-							)}
-						/>
-					</div>
-				</form>
-			</Form>
-		</ModalLayout>
-	);
-};
-export default React.memo(DeleteAccountModal);
-</file>
-
 <file path="src/features/settings/components/profile-settings-layout.tsx">
 import React from 'react';
 import ListItem from '../../../components/layouts/list-item';
@@ -3559,52 +2539,6 @@ export interface ProfileSettingsSectionProps {
 
 <file path="src/features/settings/lib/validation/index.ts">
 export * from './user.z';
-</file>
-
-<file path="src/features/settings/lib/validation/user.z.ts">
-import * as z from 'zod';
-export const DeleteAccountFormSchema = z.object({
-	delete: z
-		.string()
-		.min(1, 'Confirmation text is required')
-		.trim()
-		.refine((value) => value.toLowerCase() === 'confirm delete account', {
-			message: 'Please type exactly "confirm delete account"',
-		}),
-	email: z.preprocess(
-		(val) => (typeof val === 'string' ? val.trim() : val),
-		z.email(),
-	),
-});
-export const UpdateProfileFormSchema = z.object({
-	name: z
-		.string()
-		.max(100, 'Name must be less than 100 characters')
-		.trim()
-		.optional(),
-});
-export const UpdateAliasFormSchema = z.object({
-	alias: z
-		.string()
-		.min(5, 'Alias must be at least 5 characters')
-		.max(30, 'Alias cannot exceed 30 characters')
-		.regex(
-			/^[a-zA-Z0-9_.-]+$/,
-			'Alias can only contain letters, numbers, underscores, periods, and hyphens',
-		)
-		.trim(),
-});
-export const CheckAliasSchema = z.object({
-	alias: z.string(),
-});
-export const UpdateOnboardingSchema = z.object({
-	complete: z.boolean(),
-});
-export type DeleteAccountFormInput = z.infer<typeof DeleteAccountFormSchema>;
-export type UpdateProfileFormInput = z.infer<typeof UpdateProfileFormSchema>;
-export type UpdateAliasFormInput = z.infer<typeof UpdateAliasFormSchema>;
-export type CheckAliasInput = z.infer<typeof CheckAliasSchema>;
-export type UpdateOnboardingInput = z.infer<typeof UpdateOnboardingSchema>;
 </file>
 
 <file path="src/features/settings/pages/general/sections/delete-account.tsx">
@@ -4282,187 +3216,88 @@ export const Socials = {
 };
 </file>
 
-<file path="src/lib/auth/client-session-handler.ts">
-import { TRPCClientError } from '@trpc/client';
-import { signOut } from '@/lib/auth/auth-client';
-export function handleTRPCSessionError(error: unknown): void {
-	if (!(error instanceof TRPCClientError)) {
-		return;
-	}
-	if (
-		error.data?.cause?.shouldInvalidateSession === true &&
-		error.data.httpStatus === 401
-	) {
-		const redirectUrl = error.data.cause.redirectUrl || '/get-started';
-		signOut({
-			fetchOptions: {
-				onSuccess: () => {
-					if (typeof window !== 'undefined') {
-						window.location.href = redirectUrl;
-					}
-				},
-				onError: (signOutError) => {
-					console.error('Error during sign out:', signOutError);
-					if (typeof window !== 'undefined') {
-						window.location.href = '/get-started';
-					}
-				},
-			},
-		});
-	}
-}
-export function handleSessionErrorIfApplicable(error: unknown): boolean {
-	if (
-		error instanceof TRPCClientError &&
-		error.data?.cause?.shouldInvalidateSession === true &&
-		error.data.httpStatus === 401
-	) {
-		handleTRPCSessionError(error);
-		return true;
-	}
-	return false;
-}
-export function isSessionInvalidationError(error: unknown): boolean {
-	return (
-		error instanceof TRPCClientError &&
-		error.data?.cause?.shouldInvalidateSession === true &&
-		error.data.httpStatus === 401
-	);
-}
+<file path="src/lib/auth/auth-client.ts">
+import { inferAdditionalFields } from 'better-auth/client/plugins';
+import { createAuthClient } from 'better-auth/react';
+import type { auth } from './auth';
+export const authClient = createAuthClient({
+	baseURL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4242',
+	plugins: [
+		inferAdditionalFields<typeof auth>(),
+	],
+});
+export const { useSession, signIn, signOut, getSession } = authClient;
+export type ClientSession = typeof authClient.$Infer.Session;
 </file>
 
-<file path="src/lib/auth/helpers.ts">
-import { useSession } from '@/lib/auth/auth-client';
-import { useRouter } from 'next/navigation';
-import { useCallback } from 'react';
-export const useAuthCheck = () => {
-	const { data: session, isPending } = useSession();
-	const router = useRouter();
-	return useCallback(
-		(action: () => void) => {
-			if (!session || isPending) {
-				const url = new URL('/get-started', window.location.origin);
-				url.searchParams.set('redirectTo', window.location.pathname);
-				router.push(url.toString());
-				return;
-			}
-			action();
-		},
-		[session, isPending, router],
-	);
-};
-</file>
-
-<file path="src/lib/auth/index.ts">
-import 'server-only';
-import { auth } from './auth';
-import { headers } from 'next/headers';
-export type Session = typeof auth.$Infer.Session;
-export async function getSession(): Promise<Session | null> {
+<file path="src/lib/auth/auth.ts">
+import { betterAuth } from 'better-auth';
+import { prismaAdapter } from 'better-auth/adapters/prisma';
+import { nextCookies } from 'better-auth/next-js';
+import { site } from '@/trpc/server/site';
+const getEnv = () => {
 	try {
-		const session = await auth.api.getSession({
-			headers: await headers(),
-		});
-		return session;
-	} catch (error) {
-		console.error('Error getting session:', error);
-		return null;
+		return require('@/env').default;
+	} catch {
+		return process.env;
 	}
-}
-export { auth } from './auth';
+};
+const env = getEnv();
+export const auth = betterAuth({
+	database: prismaAdapter(site, {
+		provider: 'postgresql',
+	}),
+	emailAndPassword: {
+		enabled: false,
+	},
+	socialProviders: {
+		google: {
+			clientId:
+				env.GOOGLE_CLIENT_ID ||
+				(process.env.GOOGLE_CLIENT_ID as string),
+			clientSecret:
+				env.GOOGLE_CLIENT_SECRET ||
+				(process.env.GOOGLE_CLIENT_SECRET as string),
+		},
+	},
+	user: {
+		additionalFields: {
+			role: {
+				type: 'string',
+				required: false,
+				defaultValue: 'USER',
+				input: false,
+			},
+			alias: {
+				type: 'string',
+				required: false,
+			},
+			onboardingCompleted: {
+				type: 'boolean',
+				required: false,
+				defaultValue: false,
+			},
+		},
+	},
+	session: {
+		expiresIn: 60 * 60 * 24 * 7,
+		updateAge: 60 * 60 * 24,
+		cookieCache: {
+			enabled: true,
+			maxAge: 60 * 5,
+		},
+	},
+	plugins: [
+		nextCookies(),
+	],
+});
+export type Session = typeof auth.$Infer.Session;
 </file>
 
-<file path="src/lib/auth/session-security.ts">
-import type { UserRole } from '@/prisma/site/.generated/enums';
-import { TRPCError } from '@trpc/server';
-import type { Session } from './auth';
-interface SessionContext {
-	session: Session | null;
-	headers?: Headers;
-}
-interface ValidatedUser {
-	id: string;
-	email: string;
-	name: string;
-	image?: string | null;
-	role?: UserRole;
-	alias?: string | null;
-	onboardingCompleted?: boolean;
-}
-export function validateSessionSecurity(ctx: SessionContext): boolean {
-	if (!ctx.session) {
-		return false;
-	}
-	if (!ctx.session.user) {
-		return false;
-	}
-	if (
-		!ctx.session.user.id ||
-		typeof ctx.session.user.id !== 'string' ||
-		ctx.session.user.id.trim() === ''
-	) {
-		return false;
-	}
-	// Check if user has required email field
-	if (
-		!ctx.session.user.email ||
-		typeof ctx.session.user.email !== 'string' ||
-		ctx.session.user.email.trim() === ''
-	) {
-		return false;
-	}
-	// All validation checks passed
-	return true;
-}
-/**
- * Type guard to ensure session context has a valid user
- */
-const hasValidUser = (
-	ctx: SessionContext,
-): ctx is SessionContext & {
-	session: NonNullable<SessionContext['session']> & {
-		user: ValidatedUser;
-	};
-} => {
-	return validateSessionSecurity(ctx);
-};
-export function enforceSessionSecurity(ctx: SessionContext): ValidatedUser {
-	if (!hasValidUser(ctx)) {
-		let redirectUrl = '/get-started';
-		if (ctx.headers) {
-			const referer = ctx.headers.get('referer');
-			const host = ctx.headers.get('host');
-			if (referer && host) {
-				try {
-					const refererUrl = new URL(referer);
-					const currentPath = refererUrl.pathname + refererUrl.search;
-					if (
-						refererUrl.host === host &&
-						currentPath !== '/get-started'
-					) {
-						redirectUrl = `/get-started?redirectTo=${encodeURIComponent(currentPath)}`;
-					}
-				} catch {
-				}
-			}
-		}
-		throw new TRPCError({
-			code: 'UNAUTHORIZED',
-			message: 'Invalid session. Please log in again.',
-			cause: {
-				shouldInvalidateSession: true,
-				redirectUrl,
-			},
-		});
-	}
-	return ctx.session.user;
-}
-export function isSessionInvalidationError(error: any): boolean {
-	return (
-		error?.data?.cause?.shouldInvalidateSession === true &&
-		error?.code === 'UNAUTHORIZED'
-	);
-}
+<file path="src/lib/auth/types.ts">
+import type { auth } from './auth';
+export type Session = typeof auth.$Infer.Session;
+export type AuthUser = Session['user'];
 </file>
 
 <file path="src/lib/core/errors/error-handler.ts">
@@ -5961,41 +4796,6 @@ export const detectBot = (req: NextRequest): boolean => {
 };
 </file>
 
-<file path="src/lib/proxy/utils/get-user-via-token.ts">
-import { auth } from '@/lib/auth/auth';
-import type { NextRequest } from 'next/server';
-interface UserToken {
-	sub: string;
-	email: string;
-	name?: string;
-	role?: string;
-	alias?: string;
-	onboardingCompleted?: boolean;
-}
-export async function getUserViaToken(
-	req: NextRequest,
-): Promise<UserToken | null> {
-	try {
-		const session = await auth.api.getSession({
-			headers: req.headers,
-		});
-		if (!session) {
-			return null;
-		}
-		return {
-			sub: session.user.id,
-			email: session.user.email,
-			name: session.user.name || undefined,
-			role: session.user.role ?? undefined,
-			alias: session.user.alias ?? undefined,
-			onboardingCompleted: session.user.onboardingCompleted ?? undefined,
-		};
-	} catch {
-		return null;
-	}
-}
-</file>
-
 <file path="src/lib/proxy/utils/get-valid-subdomain.ts">
 export const getValidSubdomain = (host?: string | null): string | null => {
 	let subdomain: string | null = null;
@@ -6052,149 +4852,6 @@ export function createRouteMatcher(routePath: string): RegExp {
 		.replace(/\/:\w+\*/g, '(?:/.*)?')
 		.replace(/\/:\w+/g, '/[^/]+');
 	return new RegExp(`^${pattern}$`);
-}
-</file>
-
-<file path="src/lib/proxy/utils/session-handler.ts">
-import tryCatch from '@/lib/core/utils/try-catch';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { getUserViaToken } from './get-user-via-token';
-interface SessionValidationResult {
-	isValid: boolean;
-	shouldRedirect: boolean;
-	redirectUrl?: string;
-	user?: {
-		id: string;
-		email: string;
-		name: string;
-		role?: string;
-		onboardingCompleted?: boolean;
-	};
-}
-export async function validateProxySession(
-	req: NextRequest,
-): Promise<SessionValidationResult> {
-	const { data: token, error } = await tryCatch(getUserViaToken(req));
-	if (error) {
-		const errorMessage =
-			error instanceof Error ? error.message : 'Unknown error';
-		console.error('Proxy session validation error:', errorMessage);
-		return {
-			isValid: false,
-			shouldRedirect: true,
-			redirectUrl: generateRedirectUrl(req, 'Session validation failed'),
-		};
-	}
-	if (!token) {
-		return {
-			isValid: false,
-			shouldRedirect: false,
-		};
-	}
-	if (
-		!token.sub ||
-		typeof token.sub !== 'string' ||
-		token.sub.trim() === ''
-	) {
-		return {
-			isValid: false,
-			shouldRedirect: true,
-			redirectUrl: generateRedirectUrl(req, 'Invalid user ID'),
-		};
-	}
-	if (
-		!token.email ||
-		typeof token.email !== 'string' ||
-		token.email.trim() === ''
-	) {
-		return {
-			isValid: false,
-			shouldRedirect: true,
-			redirectUrl: generateRedirectUrl(req, 'Invalid email'),
-		};
-	}
-	return {
-		isValid: true,
-		shouldRedirect: false,
-		user: {
-			id: token.sub,
-			email: token.email,
-			name: token.name || '',
-			role: token.role as string,
-			onboardingCompleted: token.onboardingCompleted as boolean,
-		},
-	};
-}
-/**
- * Handles invalid session by clearing cookies and redirecting
- *
- * @param req - The Next.js request object
- * @param result - The session validation result
- * @returns NextResponse with redirect and cleared cookies
- */
-export function handleInvalidSession(
-	req: NextRequest,
-	result: SessionValidationResult,
-): NextResponse {
-	if (!result.shouldRedirect || !result.redirectUrl) {
-		// If no redirect needed, just continue with the request
-		return NextResponse.next();
-	}
-	// Create redirect response
-	const response = NextResponse.redirect(
-		new URL(result.redirectUrl, req.url),
-	);
-	// Clear Better Auth session cookies
-	const cookiesToClear = [
-		'better-auth.session_token',
-		'__Secure-better-auth.session_token',
-		'better-auth.session_data',
-		'__Secure-better-auth.session_data',
-	];
-	cookiesToClear.forEach((cookieName) => {
-		response.cookies.set(cookieName, '', {
-			expires: new Date(0),
-			path: '/',
-			domain: undefined,
-			secure: process.env.NODE_ENV === 'production',
-			httpOnly: true,
-			sameSite: 'lax',
-		});
-	});
-	return response;
-}
-function generateRedirectUrl(req: NextRequest, reason?: string): string {
-	const currentPath = req.nextUrl.pathname + req.nextUrl.search;
-	const authPages = ['/get-started', '/sign-in', '/sign-up', '/auth'];
-	const isAuthPage = authPages.some((page) => currentPath.startsWith(page));
-	const isApiRoute = currentPath.startsWith('/api');
-	if (isAuthPage || isApiRoute || currentPath === '/') {
-		return '/get-started';
-	}
-	const redirectUrl = `/get-started?redirectTo=${encodeURIComponent(currentPath)}`;
-	if (reason && process.env.NODE_ENV === 'development') {
-		console.log(
-			`Session invalidation in proxy: ${reason} - redirecting to ${redirectUrl}`,
-		);
-	}
-	return redirectUrl;
-}
-export function requiresAuthentication(pathname: string): boolean {
-	const publicPaths = [
-		'/get-started',
-		'/sign-in',
-		'/sign-up',
-		'/auth',
-		'/api/auth',
-		'/_next',
-		'/_static',
-		'/_vercel',
-		'/favicon.ico',
-		'/robots.txt',
-		'/sitemap.xml',
-	];
-	return !publicPaths.some((publicPath) => pathname.startsWith(publicPath));
 }
 </file>
 
@@ -6876,47 +5533,6 @@ export type {
 };
 </file>
 
-<file path="src/providers/index.tsx">
-import { Toaster } from '@/components/ui/sonner';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import ModalProvider from '@/modals/modal-provider';
-import { TRPCReactProvider } from '@/trpc/react';
-import SessionProvider from './session-provider';
-import { ThemeProvider } from './theme-provider';
-export const Providers = ({
-	children,
-}: Readonly<{ children: React.ReactNode }>) => {
-	return (
-		<ThemeProvider
-			attribute='class'
-			defaultTheme='light'
-			enableSystem
-			disableTransitionOnChange
-		>
-			<TRPCReactProvider>
-				<SessionProvider>
-					<TooltipProvider>{children}</TooltipProvider>
-					<ModalProvider />
-				</SessionProvider>
-				<Toaster />
-			</TRPCReactProvider>
-		</ThemeProvider>
-	);
-};
-export default Providers;
-</file>
-
-<file path="src/providers/session-provider.tsx">
-'use client';
-export default function SessionProvider({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
-	return <>{children}</>;
-}
-</file>
-
 <file path="src/providers/theme-provider.tsx">
 'use client';
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
@@ -7174,18 +5790,6 @@ export { throwError };
 export { TRPC_ERROR_MESSAGES as ERROR_MESSAGES };
 </file>
 
-<file path="src/trpc/server/api/site/helpers.ts">
-import type { createTRPCContext } from './trpc';
-export type Context = Awaited<ReturnType<typeof createTRPCContext>>;
-export const getUserFromContext = (ctx: Context) => {
-	return ctx.session?.user ?? null;
-};
-export const isAdmin = (user: NonNullable<Context['session']>['user'] | null): boolean => {
-	if (!user) return false;
-	return user.role === 'ADMIN';
-};
-</file>
-
 <file path="src/trpc/server/api/site/logger.ts">
 const logError = (
 	context: string,
@@ -7202,80 +5806,6 @@ const logError = (
 	});
 };
 export { logError };
-</file>
-
-<file path="src/trpc/server/api/site/trpc.ts">
-import { initTRPC, TRPCError } from '@trpc/server';
-import superjson from 'superjson';
-import { ZodError } from 'zod';
-import { getSession } from '@/lib/auth';
-import { enforceSessionSecurity } from '@/lib/auth/session-security';
-import { UserRole } from '@/prisma/site/.generated/enums';
-import { site } from '../../site';
-import { TRPCThrow } from './errors';
-export const createTRPCContext = async (opts: { headers: Headers }) => {
-	const session = await getSession();
-	return {
-		site,
-		session,
-		...opts,
-	};
-};
-const t = initTRPC.context<typeof createTRPCContext>().create({
-	transformer: superjson,
-	errorFormatter({ shape, error }) {
-		return {
-			...shape,
-			data: {
-				...shape.data,
-				zodError:
-					error.cause instanceof ZodError
-						? error.cause.flatten()
-						: null,
-			},
-		};
-	},
-});
-export const createCallerFactory = t.createCallerFactory;
-export const createTRPCRouter = t.router;
-const timingMiddleware = t.middleware(async ({ next, path }) => {
-	const start = Date.now();
-	if (t._config.isDev) {
-		const waitMs = Math.floor(Math.random() * 400) + 100;
-		await new Promise((resolve) => setTimeout(resolve, waitMs));
-	}
-	const result = await next();
-	const end = Date.now();
-	if (process.env.NODE_ENV === 'development') {
-		console.log(`[TRPC] ${path} took ${end - start}ms to execute`);
-	}
-	return result;
-});
-export const publicProcedure = t.procedure.use(timingMiddleware);
-export const protectedProcedure = t.procedure
-	.use(timingMiddleware)
-	.use(({ ctx, next }) => {
-		const user = enforceSessionSecurity(ctx);
-		return next({
-			ctx: {
-				session: { ...ctx.session!, user },
-			},
-		});
-	});
-export const adminProcedure = t.procedure
-	.use(timingMiddleware)
-	.use(({ ctx, next }) => {
-		const user = enforceSessionSecurity(ctx);
-		if (user.role !== UserRole.ADMIN) {
-			TRPCThrow.forbidden('You must be an admin to access this resource');
-		}
-		return next({
-			ctx: {
-				session: { ...ctx.session!, user },
-			},
-		});
-	});
-export const errorCode = TRPCError;
 </file>
 
 <file path="src/trpc/server/site.ts">
@@ -7603,60 +6133,6 @@ export const useOnboardingStore = create<OnboardingState>()(
 );
 </file>
 
-<file path="src/env.js">
-import { createEnv } from '@t3-oss/env-nextjs';
-import * as z from 'zod';
-const env = createEnv({
-	server: {
-		ANALYZE: z.coerce.boolean().default(false),
-		NODE_ENV: z
-			.enum(['development', 'test', 'production'])
-			.default('development'),
-		BETTER_AUTH_SECRET: z.string().min(32),
-		BETTER_AUTH_URL: z.preprocess(
-			(str) => process.env.VERCEL_URL ?? str,
-			process.env.VERCEL ? z.string() : z.url().optional(),
-		).optional(),
-		UPSTASH_REDIS_REST_URL: z.url(),
-		UPSTASH_REDIS_REST_TOKEN: z.string(),
-		SITE_DATABASE_URL: z.url(),
-		SITE_DIRECT_URL: z.url(),
-		GOOGLE_CLIENT_ID: z.string(),
-		GOOGLE_CLIENT_SECRET: z.string(),
-	},
-	client: {
-		NEXT_PUBLIC_APP_NAME: z.string(),
-		NEXT_PUBLIC_APP_URL: z.url(),
-		NEXT_PUBLIC_APP_DOMAIN: z.string(),
-		NEXT_PUBLIC_GTAG_ID: z.string(),
-		NEXT_PUBLIC_CLARITY_PROJECT_ID: z.string(),
-		NEXT_PUBLIC_FEATUREBASE_URL: z.string(),
-	},
-	runtimeEnv: {
-		ANALYZE: process.env.ANALYZE,
-		NODE_ENV: process.env.NODE_ENV,
-		BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
-		BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
-		UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
-		UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
-		SITE_DATABASE_URL: process.env.SITE_DATABASE_URL,
-		SITE_DIRECT_URL: process.env.SITE_DIRECT_URL,
-		GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-		GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-		NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
-		NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-		NEXT_PUBLIC_APP_DOMAIN: process.env.NEXT_PUBLIC_APP_DOMAIN,
-		NEXT_PUBLIC_GTAG_ID: process.env.NEXT_PUBLIC_GTAG_ID,
-		NEXT_PUBLIC_CLARITY_PROJECT_ID:
-			process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID,
-		NEXT_PUBLIC_FEATUREBASE_URL: process.env.NEXT_PUBLIC_FEATUREBASE_URL,
-	},
-	skipValidation: !!process.env.SKIP_ENV_VALIDATION,
-	emptyStringAsUndefined: true,
-});
-export default env;
-</file>
-
 <file path="src/proxy.ts">
 import { AppProxy } from '@/lib/proxy';
 import type { NextFetchEvent, NextRequest } from 'next/server';
@@ -7668,6 +6144,54 @@ export const config = {
 export default async function proxy(req: NextRequest, ev: NextFetchEvent) {
 	return AppProxy(req);
 }
+</file>
+
+<file path="src/app/(site)/get-started/auth.tsx">
+'use client';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Socials } from '@/lib/assets/svg/socials';
+import { signIn } from '@/lib/auth/auth-client';
+import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+const Auth = () => {
+	const searchParams = useSearchParams();
+	const redirectTo = searchParams.get('redirectTo');
+	const [loading, setLoading] = useState(false);
+	return (
+		<div className='relative flex h-full w-full items-center justify-center p-2'>
+			<Card className='border mx-auto w-full max-w-md shadow-lg'>
+				<CardContent className='mx-auto max-w-sm space-y-3 py-6'>
+					<Button
+						disabled={loading}
+						className='h-14 w-full'
+						variant='secondary'
+						onClick={async () => {
+							setLoading(true);
+							try {
+								await signIn.social({
+									provider: 'google',
+									callbackURL: redirectTo || '/',
+								});
+							} finally {
+								setLoading(false);
+							}
+						}}
+						aria-label='Continue with Google'
+					>
+						<span className='flex w-full flex-row items-center justify-center space-x-2'>
+							<Socials.Google className='size-6' />
+							<p className='text-sm font-normal tracking-wide'>
+								Continue with Google
+							</p>
+						</span>
+					</Button>
+				</CardContent>
+			</Card>
+		</div>
+	);
+};
+export default Auth;
 </file>
 
 <file path="src/app/sitemap.ts">
@@ -7715,6 +6239,43 @@ export type HeaderActionPropsMap = {
     : Record<string, never>
     : never;
 };
+</file>
+
+<file path="src/components/layouts/main/header/header-action.tsx">
+'use client';
+import SuspenseWrapper from '@/components/suspense-wrapper';
+import Logo from '@/components/ui/logo';
+import { normalizeRouteMatcher } from '@/lib/ui/header-actions';
+import { useSession } from '@/lib/auth/auth-client';
+import { usePathname } from 'next/navigation';
+import ActionLayout from './header-actions/action-layout';
+import { headerActionRegistry } from './header-actions/registry';
+const HeaderAction = () => {
+	const { data: session, isPending } = useSession();
+	const authenticated = !isPending && !!session;
+	const pathname = usePathname();
+	if (pathname.startsWith('/get-started')) {
+		return <Logo textOnly style='solid' className='ml-auto' />;
+	}
+	if (authenticated) {
+		for (const [key, definition] of Object.entries(headerActionRegistry)) {
+			const routeMatcher = normalizeRouteMatcher(
+				definition.config.routeMatcher,
+			);
+			if (routeMatcher(pathname)) {
+				const { Component } = definition;
+				return (
+					<SuspenseWrapper>
+						<ActionLayout>
+							<Component />
+						</ActionLayout>
+					</SuspenseWrapper>
+				);
+			}
+		}
+	}
+};
+export default HeaderAction;
 </file>
 
 <file path="src/components/layouts/main/header/index.tsx">
@@ -7771,6 +6332,1268 @@ const Header = () => {
 export default Header;
 </file>
 
+<file path="src/components/layouts/main/menubar/auth-action.tsx">
+'use client';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import SupportButton from '@/components/ui/button/support-button';
+import NavMenu from '@/components/ui/nav-menu';
+import { signOut, useSession } from '@/lib/auth/auth-client';
+import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useRouter } from 'next/navigation';
+import { LuBolt, LuLogOut, LuShield } from 'react-icons/lu';
+const AuthAction = () => {
+	const { data: session, isPending } = useSession();
+	const router = useRouter();
+	const { setMenubar } = useLayoutStore();
+	const admin = session?.user?.role === 'ADMIN';
+	const handleSignOut = async () => {
+		await signOut({
+			fetchOptions: {
+				onSuccess: () => {
+					router.push('/');
+				},
+			},
+		});
+	};
+	if (!isPending && session) {
+		return (
+			<>
+				<NavMenu
+					trigger={
+						<button
+							className='cursor-pointer'
+							aria-label='Open user menu'
+						>
+							<Avatar className='size-7'>
+								<AvatarImage
+									src={
+										session?.user?.image ??
+										'/default-avatar.png'
+									}
+									referrerPolicy='no-referrer'
+									className='pointer-events-none'
+									alt={
+										session?.user?.name
+											? `${session.user.name}'s avatar`
+											: 'User avatar'
+									}
+								/>
+								<AvatarFallback>
+									{session?.user?.name
+										? session.user.name
+												.slice(0, 2)
+												.toUpperCase()
+										: 'NA'}
+								</AvatarFallback>
+							</Avatar>
+						</button>
+					}
+					onItemClick={() => setMenubar(false)}
+					items={[
+						...(admin
+							? [
+									{
+										id: 'admin',
+										type: 'link' as const,
+										text: 'Admin',
+										href: '/admin',
+										icon: (
+											<LuShield className='size-5 md:size-[1.15rem]' />
+										),
+									},
+								]
+							: []),
+						{
+							id: 'settings',
+							type: 'link',
+							text: 'Account',
+							href: '/settings',
+							icon: (
+								<LuBolt className='size-5 md:size-[1.15rem]' />
+							),
+						},
+						{
+							id: 'sign-out',
+							type: 'button',
+							text: 'Sign Out',
+							onClick: () => { handleSignOut().catch(console.error); },
+							icon: (
+								<LuLogOut className='size-5 md:size-[1.15rem]' />
+							),
+						},
+					]}
+				/>
+				<SupportButton size='icon' variant='ghost' />
+			</>
+		);
+	}
+};
+export default AuthAction;
+</file>
+
+<file path="src/components/layouts/main/menubar/index.tsx">
+'use client';
+import SuspenseWrapper from '@/components/suspense-wrapper';
+import { Button } from '@/components/ui/button';
+import type { Route } from '@/lib/core/types/routes';
+import { cn } from '@/lib/core/utils';
+import { routes } from '@/routes';
+import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { motion } from 'framer-motion';
+import { useSession } from '@/lib/auth/auth-client';
+import { usePathname } from 'next/navigation';
+import { lazy, useCallback } from 'react';
+import { LuPanelLeftClose, LuX } from 'react-icons/lu';
+import MenubarItem from './menubar-item';
+const AuthAction = lazy(() => import('./auth-action'));
+const UnAuthAction = lazy(() => import('./unauth-action'));
+const menubarVariants = {
+	hidden: {
+		opacity: '0%',
+		transition: {
+			duration: 0.3,
+		},
+	},
+	visible: {
+		opacity: '100%',
+		transition: {
+			duration: 0.3,
+			staggerChildren: 0.05,
+			delayChildren: 0.1,
+		},
+	},
+	exit: {
+		opacity: '0%',
+		transition: {
+			duration: 0.3,
+		},
+	},
+};
+const menuItemContainerVariants = {
+	hidden: { opacity: 0 },
+	visible: {
+		opacity: 1,
+		transition: {
+			staggerChildren: 0.03,
+		},
+	},
+};
+const menuItemVariants = {
+	hidden: {
+		opacity: 0,
+	},
+	visible: {
+		opacity: 1,
+	},
+};
+const Menubar = () => {
+	const { menubar, setMenubar } = useLayoutStore();
+	const currentPath = usePathname();
+	const { data: session, isPending } = useSession();
+	const features = routes.filter((route: Route) => {
+		if (route.category !== 'feature') return false;
+		return route.type !== 'admin';
+	});
+	const primaryNavRoutes = routes.filter((route: Route) => route.primaryNav);
+	const renderAuthAction = useCallback(() => {
+		return (
+			<SuspenseWrapper>
+				{!isPending && session ? (
+					<AuthAction />
+				) : (
+					<UnAuthAction />
+				)}
+			</SuspenseWrapper>
+		);
+	}, [session, isPending]);
+	return (
+		<motion.aside
+			initial='hidden'
+			animate='visible'
+			exit='exit'
+			variants={menubarVariants}
+			className='flex h-full w-full flex-col-reverse md:border-r md:w-52 md:flex-col lg:w-64'
+		>
+			{}
+			<div className='border-b z-30 flex h-16 w-full items-center justify-between border-border px-4'>
+				<Button
+					variant='ghost'
+					size='icon'
+					onClick={() => setMenubar(!menubar)}
+					aria-label='Close menu'
+				>
+					<LuX className='flex size-4 md:hidden' />
+					<LuPanelLeftClose className='hidden size-4 md:flex' />
+				</Button>
+				<div className='flex flex-row items-center space-x-1'>
+					{primaryNavRoutes.map((route: Route) => {
+						const isActive =
+							currentPath === route.displayPath ||
+							(route.displayPath !== '/' &&
+								currentPath.startsWith(route.displayPath));
+						const Icon = route.icon;
+						return (
+							<Button
+								key={route.path}
+								href={isActive ? undefined : route.displayPath}
+								variant={isActive ? 'secondary' : 'ghost'}
+								size='icon'
+								className={cn(
+									currentPath.startsWith(route.displayPath) &&
+										route.displayPath !== '/' &&
+										'hidden md:flex',
+									isActive &&
+										'pointer-events-none opacity-50',
+								)}
+								disabled={isActive}
+								icon={
+									Icon ? (
+										<Icon
+											className='size-4'
+											aria-hidden='true'
+										/>
+									) : undefined
+								}
+								aria-label={route.displayName}
+							/>
+						);
+					})}
+				</div>
+			</div>
+			{}
+			<div className='flex h-[calc(100dvh-8rem)] w-full flex-col overflow-y-auto overflow-x-hidden bg-background p-4 scrollbar-hide'>
+				{
+}
+				<motion.div
+					className='flex-1 space-y-2'
+					variants={menuItemContainerVariants}
+					initial='hidden'
+					animate='visible'
+				>
+					{features.map((route: Route) => (
+						<motion.div
+							key={route.path}
+							variants={menuItemVariants}
+						>
+							<MenubarItem {...route} />
+						</motion.div>
+					))}
+				</motion.div>
+			</div>
+			{}
+			<div className='border-b flex h-16 items-center justify-between px-4 md:border-t'>
+				{renderAuthAction()}
+			</div>
+		</motion.aside>
+	);
+};
+export default Menubar;
+</file>
+
+<file path="src/components/ui/button/index.tsx">
+'use client';
+import { useMediaQuery } from '@/hooks';
+import {
+	formatShortcut,
+	useKeyboardShortcut,
+} from '@/hooks/useKeyboardShortcut';
+import { validateAriaProps } from '@/lib/core/types/aria-utils';
+import { cn } from '@/lib/core/utils';
+import { Slot } from '@radix-ui/react-slot';
+import { useSession } from '@/lib/auth/auth-client';
+import { useLinkStatus } from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
+import React, { useEffect } from 'react';
+import Link from '../link';
+import LoadingSpinner from '../loading/loading-spinner';
+import type { ButtonProps } from './lib/types';
+import { buttonVariants } from './lib/utils/button-variants';
+import getSpinnerSize from './lib/utils/get-spinner-size';
+interface LinkButtonContentProps {
+	loading: boolean;
+	disabled?: boolean;
+	disableWhilePending?: boolean;
+	isAuthRedirecting: boolean;
+	asChild: boolean;
+	className?: string;
+	pendingClassName?: string;
+	disabledTooltip?: React.ReactNode;
+	renderContent: (isLoadingOverride?: boolean) => ReactNode;
+	ref?: React.Ref<HTMLButtonElement>;
+	restProps: Record<string, unknown>;
+}
+const LinkButtonContent = ({
+	loading,
+	disabled,
+	disableWhilePending,
+	isAuthRedirecting,
+	asChild,
+	className,
+	pendingClassName,
+	disabledTooltip,
+	renderContent,
+	ref,
+	restProps,
+}: LinkButtonContentProps) => {
+	const { pending } = useLinkStatus();
+	const combinedLoading = loading || pending;
+	const combinedDisabled =
+		disabled ||
+		(disableWhilePending && pending) ||
+		combinedLoading ||
+		isAuthRedirecting;
+	const Comp = asChild ? Slot : 'button';
+	return (
+		<Comp
+			ref={ref}
+			disabled={combinedDisabled}
+			title={
+				disabledTooltip && combinedDisabled
+					? String(disabledTooltip)
+					: undefined
+			}
+			className={cn(
+				asChild ? className : '',
+				pending && (pendingClassName || 'cursor-progress'),
+			)}
+			{...restProps}
+		>
+			{renderContent(combinedLoading)}
+		</Comp>
+	);
+};
+interface LinkButtonProps {
+	href: string;
+	newTab?: boolean;
+	prefetch?: boolean | null;
+	loading: boolean;
+	disabled?: boolean;
+	disableWhilePending?: boolean;
+	isAuthRedirecting: boolean;
+	asChild: boolean;
+	handleAuthRedirect: (event: React.MouseEvent) => boolean;
+	onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+	variant?: ButtonProps['variant'];
+	size?: ButtonProps['size'];
+	className?: string;
+	pendingClassName?: string;
+	disabledTooltip?: React.ReactNode;
+	renderContent: (isLoadingOverride?: boolean) => ReactNode;
+	ref?: React.Ref<HTMLButtonElement>;
+	restProps: Record<string, unknown>;
+}
+const LinkButton = ({
+	href,
+	newTab,
+	prefetch,
+	loading,
+	disabled,
+	disableWhilePending,
+	isAuthRedirecting,
+	asChild,
+	handleAuthRedirect,
+	onClick,
+	variant,
+	size,
+	className,
+	pendingClassName,
+	disabledTooltip,
+	renderContent,
+	ref,
+	restProps,
+}: LinkButtonProps) => {
+	return (
+		<Link
+			href={href}
+			newTab={newTab}
+			prefetch={prefetch}
+			aria-label={restProps['aria-label'] as string | undefined}
+			onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+				if (handleAuthRedirect(e)) return;
+				onClick?.(e as unknown as React.MouseEvent<HTMLButtonElement>);
+			}}
+			className={cn(buttonVariants({ variant, size }), className)}
+		>
+			<LinkButtonContent
+				loading={loading}
+				disabled={disabled}
+				disableWhilePending={disableWhilePending}
+				isAuthRedirecting={isAuthRedirecting}
+				asChild={asChild}
+				className={className}
+				pendingClassName={pendingClassName}
+				disabledTooltip={disabledTooltip}
+				renderContent={renderContent}
+				ref={ref}
+				restProps={restProps}
+			/>
+		</Link>
+	);
+};
+const Button = (
+	props: ButtonProps & { ref?: React.Ref<HTMLButtonElement> },
+) => {
+	const {
+		className,
+		variant,
+		size,
+		requireAuth = false,
+		loading = false,
+		children,
+		onClick,
+		icon,
+		iconPosition = 'left',
+		shortcut,
+		disabledTooltip,
+		disabled,
+		asChild = false,
+		text,
+		textWrapperClassName,
+		count,
+		href,
+		newTab,
+		pendingClassName,
+		disableWhilePending,
+		prefetch,
+		authRedirectFallback,
+		ref,
+		...restProps
+	} = props;
+	validateAriaProps(restProps, 'Button');
+	const { data: session, isPending } = useSession();
+	const router = useRouter();
+	const pathname = usePathname();
+	const { isMobile } = useMediaQuery();
+	const isAuthenticated = !isPending && !!session;
+	const [isAuthRedirecting, setIsAuthRedirecting] = React.useState(false);
+	const isDisabled = disabled || loading || isAuthRedirecting;
+	const Comp = asChild ? Slot : 'button';
+	useEffect(() => {
+		if (
+			process.env.NODE_ENV === 'development' &&
+			size === 'icon' &&
+			!restProps['aria-label'] &&
+			!restProps['aria-labelledby']
+		) {
+			console.warn(
+				`Accessibility Warning: An icon-only button should have an 'aria-label' or 'aria-labelledby' prop for screen readers.`,
+			);
+		}
+	}, [size, restProps]);
+	const getAuthRedirectUrl = React.useCallback(() => {
+		const destination = authRedirectFallback || href || pathname;
+		const url = new URL('/get-started', window.location.origin);
+		url.searchParams.set('redirectTo', destination);
+		return url.toString();
+	}, [authRedirectFallback, href, pathname]);
+	const handleAuthRedirect = React.useCallback(
+		(event: React.MouseEvent) => {
+			if (requireAuth && !isAuthenticated) {
+				event.preventDefault();
+				event.stopPropagation();
+				setIsAuthRedirecting(true);
+				router.push(getAuthRedirectUrl());
+				return true;
+			}
+			return false;
+		},
+		[requireAuth, isAuthenticated, router, getAuthRedirectUrl],
+	);
+	const handleClick = React.useCallback(
+		(event: React.MouseEvent<HTMLButtonElement>) => {
+			if (handleAuthRedirect(event)) return;
+			onClick?.(event);
+		},
+		[handleAuthRedirect, onClick],
+	);
+	useKeyboardShortcut(
+		shortcut || '',
+		() => {
+			if (!isDisabled && onClick) {
+				const syntheticEvent = new MouseEvent('click', {
+					bubbles: true,
+					cancelable: true,
+				}) as unknown as React.MouseEvent<HTMLButtonElement>;
+				handleClick(syntheticEvent);
+			}
+		},
+		{
+			enabled: !!shortcut && !isDisabled && !isMobile,
+		},
+	);
+	const renderContent = (isLoadingOverride?: boolean): ReactNode => {
+		const hasChildren = children !== undefined && children !== null;
+		const content = hasChildren ? children : text;
+		const hasContent = content !== undefined && content !== null;
+		const isCurrentlyLoading = isLoadingOverride ?? loading;
+		const iconSlot = isCurrentlyLoading ? (
+			<LoadingSpinner
+				size={getSpinnerSize(size, icon)}
+				textNormal={true}
+			/>
+		) : (
+			icon
+		);
+		if (iconSlot && !hasContent && !shortcut) {
+			return iconSlot;
+		}
+		if (!iconSlot && !shortcut) {
+			return hasContent ? (
+				textWrapperClassName ? (
+					<span className={textWrapperClassName}>{content}</span>
+				) : (
+					content
+				)
+			) : null;
+		}
+		return (
+			<div className='flex items-center justify-between gap-2'>
+				<div className='flex items-center gap-2'>
+					{iconSlot && iconPosition === 'left' && (
+						<span className='shrink-0'>{iconSlot}</span>
+					)}
+					{hasContent && (
+						<span className={cn('truncate', textWrapperClassName)}>
+							{content}
+						</span>
+					)}
+					{iconSlot && iconPosition === 'right' && (
+						<span className='shrink-0'>{iconSlot}</span>
+					)}
+					{count !== undefined && count > 0 && (
+						<span className='ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary-foreground text-[10px] text-primary'>
+							{count}
+						</span>
+					)}
+				</div>
+				{shortcut && !isMobile && (
+					<kbd className='border pointer-events-none hidden h-5 select-none items-center gap-1 rounded bg-muted px-1.5 font-mono text-xs text-muted-foreground opacity-100 md:inline-flex'>
+						{formatShortcut(shortcut)}
+					</kbd>
+				)}
+			</div>
+		);
+	};
+	if (href) {
+		return (
+			<LinkButton
+				href={href}
+				newTab={newTab}
+				prefetch={prefetch}
+				loading={loading}
+				disabled={disabled}
+				disableWhilePending={disableWhilePending}
+				isAuthRedirecting={isAuthRedirecting}
+				asChild={asChild}
+				handleAuthRedirect={handleAuthRedirect}
+				onClick={onClick}
+				variant={variant}
+				size={size}
+				className={className}
+				pendingClassName={pendingClassName}
+				disabledTooltip={disabledTooltip}
+				renderContent={renderContent}
+				ref={ref}
+				restProps={restProps}
+			/>
+		);
+	}
+	return (
+		<Comp
+			className={cn(buttonVariants({ variant, size }), className)}
+			ref={ref}
+			disabled={isDisabled}
+			onClick={handleClick}
+			aria-busy={loading ? 'true' : undefined}
+			title={
+				disabledTooltip && isDisabled
+					? String(disabledTooltip)
+					: undefined
+			}
+			{...restProps}
+		>
+			{renderContent()}
+		</Comp>
+	);
+};
+Button.displayName = 'Button';
+export { Button, buttonVariants };
+</file>
+
+<file path="src/components/ui/nav-menu.tsx">
+'use client';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
+type MenuItem =
+	| {
+			id: string;
+			type: 'link';
+			text: string;
+			href: string;
+			icon?: ReactNode;
+	  }
+	| {
+			id: string;
+			type: 'button';
+			text: string;
+			onClick: () => void;
+			icon?: ReactNode;
+	  };
+interface NavMenuProps {
+	trigger: ReactNode;
+	items: MenuItem[];
+	onItemClick?: () => void;
+}
+const NavMenu = ({ trigger, items, onItemClick }: NavMenuProps) => {
+	const router = useRouter();
+	const handleItemClick = (item: MenuItem) => {
+		if (item.type === 'link') {
+			router.push(item.href);
+		} else if (item.type === 'button') {
+			item.onClick();
+		}
+		onItemClick?.();
+	};
+	return (
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
+			<DropdownMenu.Portal>
+				<DropdownMenu.Content
+					className='z-50 min-w-[12rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md'
+					sideOffset={5}
+					align='end'
+				>
+					{items.map((item, index) => (
+						<DropdownMenu.Item
+							key={item.id}
+							className='relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50'
+							onSelect={() => handleItemClick(item)}
+						>
+							{item.icon && (
+								<span className='flex-shrink-0'>{item.icon}</span>
+							)}
+							<span>{item.text}</span>
+						</DropdownMenu.Item>
+					))}
+				</DropdownMenu.Content>
+			</DropdownMenu.Portal>
+		</DropdownMenu.Root>
+	);
+};
+export default NavMenu;
+</file>
+
+<file path="src/features/settings/components/modals/delete-account-modal.tsx">
+'use client';
+import {
+	Form,
+	FormControl,
+	FormDescription,
+	FormField,
+	FormItem,
+	FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { DeleteAccountFormSchema } from '@/features/settings/lib/validation/user.z';
+import { createFormErrorHandler } from '@/hooks/useHandleFormError';
+import {
+	handleTRPCError,
+	handleTRPCSuccess,
+} from '@/lib/core/errors/error-handler';
+import tryCatch from '@/lib/core/utils/try-catch';
+import { ModalFooterActions } from '@/modals/modal-footer-actions';
+import ModalLayout from '@/modals/modal-layout';
+import { api } from '@/trpc/react';
+import { useModalStore } from '@/zustand/ui/useModalStore';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useSession, signOut } from '@/lib/auth/auth-client';
+import { useRouter } from 'next/navigation';
+import React, { useCallback, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import type { z } from 'zod';
+const DeleteAccountModal: React.FC = () => {
+	const { data: session } = useSession();
+	const { hide } = useModalStore();
+	const router = useRouter();
+	const [isDeleting, setIsDeleting] = useState(false);
+	const form = useForm<z.infer<typeof DeleteAccountFormSchema>>({
+		resolver: zodResolver(DeleteAccountFormSchema),
+		defaultValues: { delete: '', email: '' },
+		mode: 'onSubmit',
+	});
+	const deleteAccountMutation =
+		api.settings.general.deleteAccount.useMutation({
+			onMutate: () => setIsDeleting(true),
+			onSettled: () => setIsDeleting(false),
+		});
+	const handleSignOut = useCallback(async () => {
+		const { error } = await tryCatch(
+			signOut({
+				fetchOptions: {
+					onSuccess: () => {
+						router.push('/');
+					},
+				},
+			}),
+		);
+		if (error) {
+			console.error('Sign out failed', error);
+			handleTRPCError(
+				error,
+				'Unable to sign out. Please close the browser.',
+			);
+		}
+	}, [router]);
+	const onSubmit = useCallback(
+		async (values: z.infer<typeof DeleteAccountFormSchema>) => {
+			if (isDeleting) return;
+			if (
+				values.email.toLowerCase() !==
+				session?.user?.email?.toLowerCase()
+			) {
+				handleTRPCError(
+					new Error('Email does not match your account email'),
+				);
+				return;
+			}
+			const { data: result, error } = await tryCatch(
+				deleteAccountMutation.mutateAsync(values),
+			);
+			if (error) {
+				handleTRPCError(error, 'Failed to delete account');
+				return;
+			}
+			if (result) {
+				handleTRPCSuccess('Account deleted successfully!', result);
+				hide();
+				await handleSignOut();
+			}
+		},
+		[
+			deleteAccountMutation,
+			handleSignOut,
+			isDeleting,
+			session?.user?.email,
+			hide,
+		],
+	);
+	const formErrorHandler =
+		createFormErrorHandler<z.infer<typeof DeleteAccountFormSchema>>();
+	if (!session?.user) return null;
+	const handleSubmit = () => {
+		void form.handleSubmit(onSubmit, formErrorHandler)();
+	};
+	const footerActions = (
+		<ModalFooterActions
+			actions={[
+				{
+					label: 'Cancel',
+					onClick: () => hide(),
+					variant: 'none',
+					disabled: isDeleting,
+					'aria-label': 'Cancel and close modal',
+					priority: 'secondary',
+				},
+				{
+					label: 'Delete Account',
+					onClick: handleSubmit,
+					variant: 'destructive',
+					disabled: isDeleting,
+					loading: isDeleting,
+					'aria-label': 'Delete account permanently',
+					priority: 'primary',
+				},
+			]}
+		/>
+	);
+	return (
+		<ModalLayout
+			title='Delete Account'
+			description='This action is irreversible. Confirm your account deletion by typing "confirm delete account" and entering your account email.'
+			displayImage={{
+				type: 'image',
+				src: session?.user?.image || '',
+				alt:
+					(session?.user?.name ?? 'Avatar').replaceAll(' ', '') ||
+					'Avatar',
+			}}
+			footer={footerActions}
+		>
+			<Form {...form}>
+				<form onSubmit={(e) => e.preventDefault()}>
+					<div className='flex flex-col space-y-4 p-4 text-left sm:px-20 md:px-14'>
+						<FormField
+							control={form.control}
+							name='delete'
+							render={({ field }) => (
+								<FormItem className='space-y-1'>
+									<FormDescription className='text-pretty text-left text-xs tracking-normal sm:text-sm'>
+										Please type{' '}
+										<code className='text-normal py-.5 rounded-sm bg-muted px-1 font-semibold tracking-tighter'>
+											confirm delete account
+										</code>
+									</FormDescription>
+									<FormControl>
+										<Input
+											aria-label='Delete Account'
+											type='text'
+											{...field}
+											autoComplete='off'
+											autoFocus
+											disabled={isDeleting}
+											aria-describedby='delete-account-description'
+											aria-invalid={
+												!!form.formState.errors.delete
+											}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+						<FormField
+							control={form.control}
+							name='email'
+							render={({ field }) => (
+								<FormItem className='space-y-1'>
+									<FormDescription className='text-pretty text-left text-xs tracking-normal sm:text-sm'>
+										Please enter your{' '}
+										<code className='text-normal py-.5 rounded-sm bg-muted px-1 font-semibold tracking-tighter'>
+											account email
+										</code>
+									</FormDescription>
+									<FormControl>
+										<Input
+											aria-label='Email'
+											type='email'
+											{...field}
+											autoComplete='email'
+											disabled={isDeleting}
+											aria-describedby='email-confirmation-description'
+											aria-invalid={
+												!!form.formState.errors.email
+											}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+					</div>
+				</form>
+			</Form>
+		</ModalLayout>
+	);
+};
+export default React.memo(DeleteAccountModal);
+</file>
+
+<file path="src/features/settings/lib/validation/user.z.ts">
+import * as z from 'zod';
+export const DeleteAccountFormSchema = z.object({
+	delete: z
+		.string()
+		.min(1, 'Confirmation text is required')
+		.trim()
+		.refine((value) => value.toLowerCase() === 'confirm delete account', {
+			message: 'Please type exactly "confirm delete account"',
+		}),
+	email: z.string().trim().email('Please enter a valid email address'),
+});
+export const UpdateProfileFormSchema = z.object({
+	name: z
+		.string()
+		.max(100, 'Name must be less than 100 characters')
+		.trim()
+		.optional(),
+});
+export const UpdateAliasFormSchema = z.object({
+	alias: z
+		.string()
+		.min(5, 'Alias must be at least 5 characters')
+		.max(30, 'Alias cannot exceed 30 characters')
+		.regex(
+			/^[a-zA-Z0-9_.-]+$/,
+			'Alias can only contain letters, numbers, underscores, periods, and hyphens',
+		)
+		.trim(),
+});
+export const CheckAliasSchema = z.object({
+	alias: z.string(),
+});
+export const UpdateOnboardingSchema = z.object({
+	complete: z.boolean(),
+});
+export type DeleteAccountFormInput = z.infer<typeof DeleteAccountFormSchema>;
+export type UpdateProfileFormInput = z.infer<typeof UpdateProfileFormSchema>;
+export type UpdateAliasFormInput = z.infer<typeof UpdateAliasFormSchema>;
+export type CheckAliasInput = z.infer<typeof CheckAliasSchema>;
+export type UpdateOnboardingInput = z.infer<typeof UpdateOnboardingSchema>;
+</file>
+
+<file path="src/lib/auth/client-session-handler.ts">
+import { signOut } from '@/lib/auth/auth-client';
+import { TRPCClientError } from '@trpc/client';
+export function handleTRPCSessionError(error: unknown): void {
+	if (!(error instanceof TRPCClientError)) {
+		return;
+	}
+	if (
+		error.data?.cause?.shouldInvalidateSession === true &&
+		error.data.httpStatus === 401
+	) {
+		const redirectUrl = error.data.cause.redirectUrl || '/get-started';
+		signOut({
+			fetchOptions: {
+				onSuccess: () => {
+					if (typeof window !== 'undefined') {
+						window.location.href = redirectUrl;
+					}
+				},
+				onError: (signOutError) => {
+					console.error('Error during sign out:', signOutError);
+					if (typeof window !== 'undefined') {
+						window.location.href = '/get-started';
+					}
+				},
+			},
+		});
+	}
+}
+export function handleSessionErrorIfApplicable(error: unknown): boolean {
+	if (
+		error instanceof TRPCClientError &&
+		error.data?.cause?.shouldInvalidateSession === true &&
+		error.data.httpStatus === 401
+	) {
+		handleTRPCSessionError(error);
+		return true;
+	}
+	return false;
+}
+export function isSessionInvalidationError(error: unknown): boolean {
+	return (
+		error instanceof TRPCClientError &&
+		error.data?.cause?.shouldInvalidateSession === true &&
+		error.data.httpStatus === 401
+	);
+}
+</file>
+
+<file path="src/lib/auth/helpers.ts">
+import { useSession } from '@/lib/auth/auth-client';
+import { useRouter } from 'next/navigation';
+import { useCallback } from 'react';
+export const useAuthCheck = () => {
+	const { data: session, isPending } = useSession();
+	const router = useRouter();
+	return useCallback(
+		(action: () => void) => {
+			if (!session || isPending) {
+				const url = new URL('/get-started', window.location.origin);
+				url.searchParams.set('redirectTo', window.location.pathname);
+				router.push(url.toString());
+				return;
+			}
+			action();
+		},
+		[session, isPending, router],
+	);
+};
+</file>
+
+<file path="src/lib/auth/index.ts">
+import 'server-only';
+import { auth } from './auth';
+import { headers } from 'next/headers';
+export type Session = typeof auth.$Infer.Session;
+export async function getSession(): Promise<Session | null> {
+	try {
+		const session = await auth.api.getSession({
+			headers: await headers(),
+		});
+		return session;
+	} catch (error) {
+		console.error('Error getting session:', error);
+		return null;
+	}
+}
+export { auth } from './auth';
+</file>
+
+<file path="src/lib/auth/session-security.ts">
+import type { UserRole } from '@/prisma/site/.generated/enums';
+import { TRPCError } from '@trpc/server';
+import type { Session } from './auth';
+interface SessionContext {
+	session: Session | null;
+	headers?: Headers;
+}
+interface ValidatedUser {
+	id: string;
+	email: string;
+	name: string;
+	image?: string | null;
+	role?: UserRole;
+	alias?: string | null;
+	onboardingCompleted?: boolean;
+}
+export function validateSessionSecurity(ctx: SessionContext): boolean {
+	if (!ctx.session) {
+		return false;
+	}
+	if (!ctx.session.user) {
+		return false;
+	}
+	if (
+		!ctx.session.user.id ||
+		typeof ctx.session.user.id !== 'string' ||
+		ctx.session.user.id.trim() === ''
+	) {
+		return false;
+	}
+	// Check if user has required email field
+	if (
+		!ctx.session.user.email ||
+		typeof ctx.session.user.email !== 'string' ||
+		ctx.session.user.email.trim() === ''
+	) {
+		return false;
+	}
+	// All validation checks passed
+	return true;
+}
+/**
+ * Type guard to ensure session context has a valid user
+ */
+const hasValidUser = (
+	ctx: SessionContext,
+): ctx is SessionContext & {
+	session: NonNullable<SessionContext['session']> & {
+		user: ValidatedUser;
+	};
+} => {
+	return validateSessionSecurity(ctx);
+};
+export function enforceSessionSecurity(ctx: SessionContext): ValidatedUser {
+	if (!hasValidUser(ctx)) {
+		let redirectUrl = '/get-started';
+		if (ctx.headers) {
+			const referer = ctx.headers.get('referer');
+			const host = ctx.headers.get('host');
+			if (referer && host) {
+				try {
+					const refererUrl = new URL(referer);
+					const currentPath = refererUrl.pathname + refererUrl.search;
+					if (
+						refererUrl.host === host &&
+						currentPath !== '/get-started'
+					) {
+						redirectUrl = `/get-started?redirectTo=${encodeURIComponent(currentPath)}`;
+					}
+				} catch {
+				}
+			}
+		}
+		throw new TRPCError({
+			code: 'UNAUTHORIZED',
+			message: 'Invalid session. Please log in again.',
+			cause: {
+				shouldInvalidateSession: true,
+				redirectUrl,
+			},
+		});
+	}
+	return ctx.session.user;
+}
+export function isSessionInvalidationError(error: any): boolean {
+	return (
+		error?.data?.cause?.shouldInvalidateSession === true &&
+		error?.code === 'UNAUTHORIZED'
+	);
+}
+</file>
+
+<file path="src/lib/proxy/utils/get-user-via-token.ts">
+import { auth } from '@/lib/auth/auth';
+import type { NextRequest } from 'next/server';
+interface UserToken {
+	sub: string;
+	email: string;
+	name?: string;
+	role?: string;
+	alias?: string;
+	onboardingCompleted?: boolean;
+}
+export async function getUserViaToken(
+	req: NextRequest,
+): Promise<UserToken | null> {
+	try {
+		const session = await auth.api.getSession({
+			headers: req.headers,
+		});
+		if (!session) {
+			return null;
+		}
+		return {
+			sub: session.user.id,
+			email: session.user.email,
+			name: session.user.name || undefined,
+			role: session.user.role ?? undefined,
+			alias: session.user.alias ?? undefined,
+			onboardingCompleted: session.user.onboardingCompleted ?? undefined,
+		};
+	} catch {
+		return null;
+	}
+}
+</file>
+
+<file path="src/lib/proxy/utils/session-handler.ts">
+import tryCatch from '@/lib/core/utils/try-catch';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { getUserViaToken } from './get-user-via-token';
+interface SessionValidationResult {
+	isValid: boolean;
+	shouldRedirect: boolean;
+	redirectUrl?: string;
+	user?: {
+		id: string;
+		email: string;
+		name: string;
+		role?: string;
+		onboardingCompleted?: boolean;
+	};
+}
+export async function validateProxySession(
+	req: NextRequest,
+): Promise<SessionValidationResult> {
+	const { data: token, error } = await tryCatch(getUserViaToken(req));
+	if (error) {
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error';
+		console.error('Proxy session validation error:', errorMessage);
+		return {
+			isValid: false,
+			shouldRedirect: true,
+			redirectUrl: generateRedirectUrl(req, 'Session validation failed'),
+		};
+	}
+	if (!token) {
+		return {
+			isValid: false,
+			shouldRedirect: false,
+		};
+	}
+	if (
+		!token.sub ||
+		typeof token.sub !== 'string' ||
+		token.sub.trim() === ''
+	) {
+		return {
+			isValid: false,
+			shouldRedirect: true,
+			redirectUrl: generateRedirectUrl(req, 'Invalid user ID'),
+		};
+	}
+	if (
+		!token.email ||
+		typeof token.email !== 'string' ||
+		token.email.trim() === ''
+	) {
+		return {
+			isValid: false,
+			shouldRedirect: true,
+			redirectUrl: generateRedirectUrl(req, 'Invalid email'),
+		};
+	}
+	return {
+		isValid: true,
+		shouldRedirect: false,
+		user: {
+			id: token.sub,
+			email: token.email,
+			name: token.name || '',
+			role: token.role as string,
+			onboardingCompleted: token.onboardingCompleted as boolean,
+		},
+	};
+}
+/**
+ * Handles invalid session by clearing cookies and redirecting
+ *
+ * @param req - The Next.js request object
+ * @param result - The session validation result
+ * @returns NextResponse with redirect and cleared cookies
+ */
+export function handleInvalidSession(
+	req: NextRequest,
+	result: SessionValidationResult,
+): NextResponse {
+	if (!result.shouldRedirect || !result.redirectUrl) {
+		// If no redirect needed, just continue with the request
+		return NextResponse.next();
+	}
+	// Create redirect response
+	const response = NextResponse.redirect(
+		new URL(result.redirectUrl, req.url),
+	);
+	// Clear Better Auth session cookies
+	const cookiesToClear = [
+		'better-auth.session_token',
+		'__Secure-better-auth.session_token',
+		'better-auth.session_data',
+		'__Secure-better-auth.session_data',
+	];
+	cookiesToClear.forEach((cookieName) => {
+		response.cookies.set(cookieName, '', {
+			expires: new Date(0),
+			path: '/',
+			domain: undefined,
+			secure: process.env.NODE_ENV === 'production',
+			httpOnly: true,
+			sameSite: 'lax',
+		});
+	});
+	return response;
+}
+function generateRedirectUrl(req: NextRequest, reason?: string): string {
+	const currentPath = req.nextUrl.pathname + req.nextUrl.search;
+	const authPages = ['/get-started', '/sign-in', '/sign-up', '/auth'];
+	const isAuthPage = authPages.some((page) => currentPath.startsWith(page));
+	const isApiRoute = currentPath.startsWith('/api');
+	if (isAuthPage || isApiRoute || currentPath === '/') {
+		return '/get-started';
+	}
+	const redirectUrl = `/get-started?redirectTo=${encodeURIComponent(currentPath)}`;
+	if (reason && process.env.NODE_ENV === 'development') {
+		console.log(
+			`Session invalidation in proxy: ${reason} - redirecting to ${redirectUrl}`,
+		);
+	}
+	return redirectUrl;
+}
+export function requiresAuthentication(pathname: string): boolean {
+	const publicPaths = [
+		'/get-started',
+		'/sign-in',
+		'/sign-up',
+		'/auth',
+		'/api/auth',
+		'/_next',
+		'/_static',
+		'/_vercel',
+		'/favicon.ico',
+		'/robots.txt',
+		'/sitemap.xml',
+	];
+	return !publicPaths.some((publicPath) => pathname.startsWith(publicPath));
+}
+</file>
+
 <file path="src/modals/registry.ts">
 import type { ComponentType, LazyExoticComponent } from 'react';
 import * as settingsModals from '@/features/settings/modals';
@@ -7787,6 +7610,620 @@ export type ModalPropsMap = {
     : Record<string, never>
     : never;
 };
+</file>
+
+<file path="src/providers/index.tsx">
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import ModalProvider from '@/modals/modal-provider';
+import { TRPCReactProvider } from '@/trpc/react';
+import SessionProvider from './session-provider';
+import { ThemeProvider } from './theme-provider';
+export const Providers = ({
+	children,
+}: Readonly<{ children: React.ReactNode }>) => {
+	return (
+		<ThemeProvider
+			attribute='class'
+			defaultTheme='light'
+			enableSystem
+			disableTransitionOnChange
+		>
+			<TRPCReactProvider>
+				<SessionProvider>
+					<TooltipProvider>{children}</TooltipProvider>
+					<ModalProvider />
+				</SessionProvider>
+				<Toaster />
+			</TRPCReactProvider>
+		</ThemeProvider>
+	);
+};
+export default Providers;
+</file>
+
+<file path="src/providers/session-provider.tsx">
+'use client';
+export default function SessionProvider({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
+	return <>{children}</>;
+}
+</file>
+
+<file path="src/routes/core.ts">
+import type { Route } from '@/lib/core/types/routes';
+import { LuNewspaper, LuTable2, LuFileText } from 'react-icons/lu';
+const coreRoutes: Route[] = [
+	{
+		path: '/',
+		displayPath: '/',
+		displayName: 'Feed',
+		type: 'public',
+		category: 'ancillary',
+		icon: LuNewspaper,
+		primaryNav: true,
+	},
+	{
+		path: '/thread/:slugId*',
+		displayPath: '/thread',
+		displayName: 'Thread',
+		type: 'public',
+		category: 'ancillary',
+	},
+	{
+		path: '/posts',
+		displayPath: '/posts',
+		displayName: 'Your Posts',
+		type: 'public',
+		category: 'ancillary',
+	},
+	{
+		path: '/track',
+		displayPath: '/track',
+		displayName: 'Track',
+		type: 'private',
+		category: 'ancillary',
+		icon: LuTable2,
+		primaryNav: true,
+	},
+	{
+		path: '/track/visualize/:path*',
+		displayPath: '/track/visualize',
+		displayName: 'Visualize Tracking',
+		type: 'private',
+		category: 'ancillary',
+	},
+	{
+		path: '/notes',
+		displayPath: '/notes',
+		displayName: 'Notes',
+		type: 'private',
+		category: 'ancillary',
+		icon: LuFileText,
+	},
+];
+export { coreRoutes };
+</file>
+
+<file path="src/routes/menubar.ts">
+import type { Route } from '@/lib/core/types/routes';
+import { LuNotebook, LuSearch } from 'react-icons/lu';
+const menubarRoutes: Route[] = [
+	{
+		path: '/notes',
+		displayPath: '/notes',
+		displayName: 'Notes',
+		type: 'public',
+		category: 'feature',
+		icon: LuNotebook,
+	},
+	{
+		path: '/feature-2',
+		displayPath: '/feature-2',
+		displayName: 'Feature Two',
+		type: 'public',
+		category: 'feature',
+		icon: LuSearch,
+	},
+];
+export { menubarRoutes };
+</file>
+
+<file path="src/trpc/server/api/site/helpers.ts">
+import type { createTRPCContext } from './trpc';
+export type Context = Awaited<ReturnType<typeof createTRPCContext>>;
+export const getUserFromContext = (ctx: Context) => {
+	return ctx.session?.user ?? null;
+};
+export const isAdmin = (user: NonNullable<Context['session']>['user'] | null): boolean => {
+	if (!user) return false;
+	return user.role === 'ADMIN';
+};
+</file>
+
+<file path="src/trpc/server/api/site/root.ts">
+import { settingsRouter } from '@/features/settings/api';
+import { createCallerFactory, createTRPCRouter } from './trpc';
+import { userNotesFeatureRouter } from "@/features/user-notes/api";
+export const appRouter = createTRPCRouter({
+    settings: settingsRouter,
+    userNotes: userNotesFeatureRouter
+});
+export type AppRouter = typeof appRouter;
+export const createCaller = createCallerFactory(appRouter);
+export default appRouter;
+</file>
+
+<file path="src/trpc/server/api/site/trpc.ts">
+import { initTRPC, TRPCError } from '@trpc/server';
+import superjson from 'superjson';
+import { ZodError } from 'zod';
+import { getSession } from '@/lib/auth';
+import { enforceSessionSecurity } from '@/lib/auth/session-security';
+import { UserRole } from '@/prisma/site/.generated/enums';
+import { site } from '../../site';
+import { TRPCThrow } from './errors';
+export const createTRPCContext = async (opts: { headers: Headers }) => {
+	const session = await getSession();
+	return {
+		site,
+		session,
+		...opts,
+	};
+};
+const t = initTRPC.context<typeof createTRPCContext>().create({
+	transformer: superjson,
+	errorFormatter({ shape, error }) {
+		return {
+			...shape,
+			data: {
+				...shape.data,
+				zodError:
+					error.cause instanceof ZodError
+						? error.cause.flatten()
+						: null,
+			},
+		};
+	},
+});
+export const createCallerFactory = t.createCallerFactory;
+export const createTRPCRouter = t.router;
+const timingMiddleware = t.middleware(async ({ next, path }) => {
+	const start = Date.now();
+	if (t._config.isDev) {
+		const waitMs = Math.floor(Math.random() * 400) + 100;
+		await new Promise((resolve) => setTimeout(resolve, waitMs));
+	}
+	const result = await next();
+	const end = Date.now();
+	if (process.env.NODE_ENV === 'development') {
+		console.log(`[TRPC] ${path} took ${end - start}ms to execute`);
+	}
+	return result;
+});
+export const publicProcedure = t.procedure.use(timingMiddleware);
+export const protectedProcedure = t.procedure
+	.use(timingMiddleware)
+	.use(({ ctx, next }) => {
+		const user = enforceSessionSecurity(ctx);
+		return next({
+			ctx: {
+				session: { ...ctx.session!, user },
+			},
+		});
+	});
+export const adminProcedure = t.procedure
+	.use(timingMiddleware)
+	.use(({ ctx, next }) => {
+		const user = enforceSessionSecurity(ctx);
+		if (user.role !== UserRole.ADMIN) {
+			TRPCThrow.forbidden('You must be an admin to access this resource');
+		}
+		return next({
+			ctx: {
+				session: { ...ctx.session!, user },
+			},
+		});
+	});
+export const errorCode = TRPCError;
+</file>
+
+<file path="src/env.js">
+import { createEnv } from '@t3-oss/env-nextjs';
+import * as z from 'zod';
+const env = createEnv({
+	server: {
+		ANALYZE: z.coerce.boolean().default(false),
+		NODE_ENV: z
+			.enum(['development', 'test', 'production'])
+			.default('development'),
+		BETTER_AUTH_SECRET: z.string().min(32),
+		BETTER_AUTH_URL: z.preprocess(
+			(str) => process.env.VERCEL_URL ?? str,
+			process.env.VERCEL ? z.string() : z.url().optional(),
+		).optional(),
+		UPSTASH_REDIS_REST_URL: z.url(),
+		UPSTASH_REDIS_REST_TOKEN: z.string(),
+		SITE_DATABASE_URL: z.url(),
+		SITE_DIRECT_URL: z.url(),
+		GOOGLE_CLIENT_ID: z.string(),
+		GOOGLE_CLIENT_SECRET: z.string(),
+	},
+	client: {
+		NEXT_PUBLIC_APP_NAME: z.string(),
+		NEXT_PUBLIC_APP_URL: z.url(),
+		NEXT_PUBLIC_APP_DOMAIN: z.string(),
+		NEXT_PUBLIC_GTAG_ID: z.string(),
+		NEXT_PUBLIC_CLARITY_PROJECT_ID: z.string(),
+		NEXT_PUBLIC_FEATUREBASE_URL: z.string(),
+	},
+	runtimeEnv: {
+		ANALYZE: process.env.ANALYZE,
+		NODE_ENV: process.env.NODE_ENV,
+		BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+		BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+		UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+		UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+		SITE_DATABASE_URL: process.env.SITE_DATABASE_URL,
+		SITE_DIRECT_URL: process.env.SITE_DIRECT_URL,
+		GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+		GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+		NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
+		NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+		NEXT_PUBLIC_APP_DOMAIN: process.env.NEXT_PUBLIC_APP_DOMAIN,
+		NEXT_PUBLIC_GTAG_ID: process.env.NEXT_PUBLIC_GTAG_ID,
+		NEXT_PUBLIC_CLARITY_PROJECT_ID:
+			process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID,
+		NEXT_PUBLIC_FEATUREBASE_URL: process.env.NEXT_PUBLIC_FEATUREBASE_URL,
+	},
+	skipValidation: !!process.env.SKIP_ENV_VALIDATION,
+	emptyStringAsUndefined: true,
+});
+export default env;
+</file>
+
+<file path=".claude/CLAUDE.md">
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Tech Stack Overview
+
+- **Framework**: Next.js 16 with App Router, React 19, TypeScript 5.8
+- **Styling**: TailwindCSS with Radix UI components
+- **State Management**: Zustand with Immer for client state
+- **API Layer**: tRPC 11 for end-to-end type-safe APIs
+- **Database**: PostgreSQL with Prisma 6.18 (using @prisma/adapter-pg for connection pooling)
+- **Authentication**: Better Auth 1.3 with Google OAuth
+- **Caching**: Upstash Redis for rate limiting and caching
+- **Validation**: Zod 4 for runtime type validation
+- **AI SDK**: Vercel AI SDK 5 (available but optional)
+
+## Development Commands
+
+**Package Manager**: The project uses Bun (see `bun.lock`) but npm commands work with any package manager (npm, bun, pnpm, yarn).
+
+### Core Development
+
+```bash
+npm run dev              # Start dev server on port 4242 with Prisma Studio
+npm run build            # Production build with Prisma generation
+npm run lint             # Run ESLint
+npm run format           # Auto-fix with ESLint and Prettier
+npm run format:check     # Check formatting without fixing
+npm run analyze          # Analyze bundle size
+npm run ts-check         # TypeScript type checking without emitting files
+npm run repomix          # Generate codebase context file for AI tools
+```
+
+### Database Operations
+
+**Client Generation** (always run after schema changes):
+
+```bash
+npm run db:generate      # Generate Prisma client
+```
+
+**Development Migrations**:
+
+```bash
+npm run db:migrate:dev   # Create and apply new migration
+npm run db:push          # Push schema changes without migration (dev only)
+npm run db:studio        # Open Prisma Studio on port 5555
+```
+
+**Production Deployment**:
+
+```bash
+npm run db:migrate:deploy  # Apply migrations in production
+```
+
+**Migration Management**:
+
+```bash
+npm run db:status        # Check migration status
+npm run db:reset         # Reset database (dev only - destroys data)
+npm run db:pull          # Pull schema from database
+```
+
+**Migration Debugging**:
+
+```bash
+npm run db:site:diff                # Show diff between schema and datasource
+npm run db:site:diff-from-prod      # Compare local schema to production DB
+npm run db:site:resolve-applied -- MIGRATION_NAME     # Mark migration as applied
+npm run db:site:resolve-rollback -- MIGRATION_NAME    # Mark migration as rolled back
+```
+
+### CI/CD Commands
+
+```bash
+npm run ci:migrate       # Apply production migrations
+npm run ci:validate      # Check migration status and run build
+```
+
+## Feature Scaffolding
+
+The repository includes a powerful CLI tool for creating new features with proper structure and automatic registry integration.
+
+### Creating Features
+
+```bash
+npm run create                              # Interactive mode (recommended)
+npm run create -- my-feature                # Quick create with positional argument
+npm run create -- --name=my-feature         # Using --name flag
+npm run create -- -n my-feature             # Using -n short flag
+```
+
+### Interactive Module Selection
+
+When you run `npm run create`, you'll be prompted to select which modules to generate:
+
+- **API** (tRPC routes and services) - Creates:
+    - `api/index.ts` - Feature router that exports to root
+    - `api/{feature-name}.ts` - tRPC procedures
+    - `api/services/{feature-name}.service.ts` - Business logic layer
+    - Auto-updates `src/trpc/server/api/site/root.ts`
+
+- **Components** (React components) - Creates:
+    - `components/{feature-name}-component.tsx` - Example component
+
+- **Lib** (types and validation) - Creates:
+    - `lib/types/index.ts` - TypeScript type definitions
+    - `lib/validation/{feature-name}.z.ts` - Zod validation schemas
+
+- **Pages** (reusable page sections) - Creates:
+    - `pages/index.tsx` - Page component for composition
+
+- **Header Actions** (dynamic header content) - Creates:
+    - `header-actions.ts` - Header action definitions
+    - `components/{feature-name}-header-action.tsx` - Header component
+    - Auto-updates `src/components/layouts/main/header/header-actions/registry.ts`
+
+- **Modals** (dialogs/drawers) - Creates:
+    - `modals.ts` - Modal definitions
+    - `components/modals/example-{feature-name}-modal.tsx` - Example modal
+    - Auto-updates `src/modals/registry.ts`
+
+### What Gets Auto-Generated
+
+The scaffolding tool automatically:
+
+1. Creates the feature directory at `src/features/{feature-name}/`
+2. Generates boilerplate code with proper imports and type safety
+3. Updates registry files (tRPC root, modals registry, header actions registry)
+4. Uses proper naming conventions (kebab-case for files, PascalCase for components, camelCase for functions)
+5. Includes example implementations you can customize
+
+### Removing Features
+
+```bash
+npm run create -- --remove my-feature       # Remove feature and update registries
+npm run create -- -r my-feature             # Short form
+```
+
+The removal process:
+
+1. Removes imports and references from all registries
+2. Prompts for confirmation before deleting the directory
+3. Cleans up tRPC routes, modal definitions, and header actions
+
+## Architecture
+
+### Prisma Schema Organization
+
+The database schema is located at `src/prisma/site/schema/schema.prisma`. The generated Prisma client outputs to `src/prisma/site/.generated/` with separate subdirectories for client and enums.
+
+**Important**: Always use the generated types from `@/prisma/site/.generated/client` and `@/prisma/site/.generated/enums`.
+
+### tRPC Architecture
+
+The tRPC API follows a feature-based structure:
+
+1. **Router Definition**: `src/trpc/server/api/site/root.ts` - Main app router that aggregates feature routers
+2. **Feature Organization**: Each feature (e.g., settings) has:
+    - `src/features/{feature}/api/index.ts` - Feature router that exports to root
+    - `src/features/{feature}/api/{module}.ts` - Individual route modules (e.g., user.ts)
+    - `src/features/{feature}/api/services/{module}.service.ts` - Business logic separated from routes
+    - `src/features/{feature}/lib/validation/*.z.ts` - Zod validation schemas
+
+3. **Server Setup**: `src/trpc/server/api/site/trpc.ts` contains the tRPC initialization and procedure builders
+4. **Client Setup**: `src/trpc/react.tsx` provides the React Query integration
+
+### Middleware (Next.js Proxy)
+
+The application uses a custom middleware system:
+
+- Entry point: `src/proxy.ts` (Next.js middleware file) calls `AppProxy` from `src/lib/proxy`
+- Core logic: `src/lib/proxy/app.ts` handles authentication state and routing
+- Validates sessions for protected routes via `validateProxySession()`
+- Manages admin route access (dev-only, restricted to ADMIN role)
+- Redirects based on user onboarding state
+- Matcher excludes: `/api/`, `/_next/`, `/_proxy/`, `/_static`, `/_vercel`, and static files
+
+### Authentication Flow
+
+Better Auth 1.3 configuration in `src/lib/auth/auth.ts`:
+
+- Prisma adapter with PostgreSQL provider
+- Google OAuth social provider (extensible for more providers)
+- Custom user fields: `role`, `alias`, `onboardingCompleted`
+- Session management: 7-day expiry with 1-day update age, 5-minute cookie cache
+- Client setup: `src/lib/auth/auth-client.ts` exports `useSession`, `signIn`, `signOut`, `getSession`
+- API routes: `src/app/api/auth/[...all]/route.ts` handles all auth endpoints
+- Session security: `src/lib/auth/session-security.ts`
+
+### Zustand State Management
+
+Located in `src/zustand/`:
+
+- Uses Immer middleware for immutable updates
+- Configuration in `src/lib/infra/storage/zustand/immer-config.ts`
+- Versioning support in `src/lib/infra/storage/zustand/versioning.ts`
+- Example stores: `useLayoutStore`, `useModalStore`, `useOnboardingStore`
+
+### Route Architecture
+
+Routes are centrally managed in `src/routes/`:
+
+- `src/routes/index.ts` - Main routes aggregator
+- `src/routes/core.ts` - Core navigation routes
+- `src/routes/menubar.ts` - Menubar/sidebar routes
+- `src/routes/account.ts` - Account-related routes
+- `src/routes/admin.ts` - Admin routes (dev-only)
+
+Each route implements the `Route` interface from `src/lib/core/types/routes.ts`.
+
+### Registry Pattern
+
+The codebase uses a registry pattern for extensibility:
+
+1. **Modal Registry** (`src/modals/registry.ts`):
+    - Each feature exports modals from `{feature}/modals.ts`
+    - Central registry aggregates all modals
+    - Type-safe with auto-inferred props: `ModalPropsMap`
+    - Usage: `const { openModal } = useModals(); openModal('modalKey', { props })`
+
+2. **Header Action Registry** (`src/components/layouts/main/header/header-actions/registry.ts`):
+    - Each feature exports header actions from `{feature}/header-actions.ts`
+    - Automatically rendered based on current route
+    - Type-safe with auto-inferred props: `HeaderActionPropsMap`
+
+### Component Organization
+
+- **UI Components**: `src/components/ui/` - Radix UI-based design system
+- **Layout Components**: `src/components/layouts/` - Main layout, headers, footers
+- **Feature Components**: `src/features/{feature}/components/` - Feature-specific components
+- **Feature Pages**: `src/features/{feature}/pages/` - Reusable page sections
+
+### Custom Hooks
+
+Located in `src/hooks/`:
+
+- `useModals` - Modal state management
+- `useMediaQuery` - Responsive breakpoint detection
+- `useKeyboardShortcut` - Keyboard shortcut handling
+- `useHandleFormError` - Form error handling with toast notifications
+
+### Environment Variables
+
+Managed via `@t3-oss/env-nextjs` in `src/env.js`:
+
+- Server-only variables (database URLs, API keys, OAuth secrets)
+- Client-exposed variables (prefixed with `NEXT_PUBLIC_`)
+- Automatic validation with Zod schemas
+- Set `SKIP_ENV_VALIDATION=true` to skip validation (useful for Docker builds)
+
+### Path Aliases
+
+TypeScript path alias configured: `@/*` maps to `src/*`
+
+## Feature Development Guidelines
+
+When adding new features:
+
+1. **Create Feature Directory**: `src/features/{feature-name}/`
+2. **Add tRPC Router**:
+    - Create `api/index.ts` with feature router
+    - Add individual route files as needed (e.g., `api/user.ts`)
+    - Separate business logic into `api/services/*.service.ts`
+    - Add to `src/trpc/server/api/site/root.ts`
+3. **Add Validation**: Create Zod schemas in `lib/validation/*.z.ts`
+4. **Add UI Components**: Create in `components/`
+5. **Add Routes**: Define routes in `src/routes/` if adding navigation
+6. **Add Modals** (if needed):
+    - Export modal definitions from `modals.ts`
+    - Registry auto-includes them from `src/modals/registry.ts`
+7. **Add Header Actions** (if needed):
+    - Export from `header-actions.ts`
+    - Registry auto-includes them from `src/components/layouts/main/header/header-actions/registry.ts`
+
+## Database Schema Changes
+
+1. Modify `src/prisma/site/schema/schema.prisma`
+2. Run `npm run db:migrate:dev` to create and apply migration
+3. Commit both the schema file and the migration files in `src/prisma/site/migrations/`
+4. The Prisma client is automatically regenerated in `src/prisma/site/.generated/`
+
+## Testing Database Connections
+
+The application uses `@prisma/adapter-pg` with connection pooling:
+
+- Pool configuration in `src/trpc/server/site.ts`
+- Max connections: 20
+- Connection timeout: 10s
+- Idle timeout: 30s
+- Vercel Functions integration via `attachDatabasePool()`
+
+## Metadata and SEO
+
+Metadata utilities in `src/lib/metadata/`:
+
+- `config.ts` - Base metadata configuration
+- `structured-data.ts` - JSON-LD schema generation
+- `icon-graphics.ts` - Dynamic icon generation
+- OpenGraph/Twitter images handled in `src/app/` route files
+
+## Error Handling
+
+- Custom error handler: `src/lib/core/errors/error-handler.ts`
+- Error messages: `src/lib/core/errors/error-messages.ts`
+- Form error handling: Use `useHandleFormError` hook
+- tRPC error handling: Defined in `src/trpc/server/api/site/errors.ts`
+
+## Analytics Integration
+
+- Microsoft Clarity: `NEXT_PUBLIC_CLARITY_PROJECT_ID`
+- Google Analytics: `NEXT_PUBLIC_GTAG_ID`
+- Vercel Analytics: Automatically integrated
+- Scripts in `src/scripts/analytics.tsx`
+
+## Custom Slash Commands
+
+The repository includes custom Claude Code slash commands in `.claude/commands/`:
+
+- `/create [feature-name] [path/to/instructions.md]` - Creates and implements a feature end-to-end using the scaffolding script
+- `/scrutinize [path_to_parent_component] [instructions...]` - Recursively analyzes a component/directory and its children
+- `/use-prd [path_to_prd] [path_to_docs]` - Analyzes codebase against PRD and docs for alignment
+- `/update-prd [path_to_current_prd] [pull_request_number]` - Updates PRD by analyzing PR changes
+- `/fix [path_to_logs] [path_to_instructions] [path_to_prd] [path_to_docs]` - Performs root cause analysis and implements fixes
+
+## Port Configuration
+
+- **Dev Server**: <http://localhost:4242>
+- **Prisma Studio**: <http://localhost:5555>
+
+## Important Notes
+
+- Admin routes (`/admin/*`) are only accessible in development mode and restricted to ADMIN role
+- The app uses standalone output mode for Docker deployments
+- TailwindCSS uses the `tailwind-merge` utility for className composition
+- Images use Next.js Image component with remote pattern allowlist
+- Security headers configured in `next.config.js`
+- Session tokens are validated on protected routes via the proxy middleware
 </file>
 
 <file path="src/prisma/site/schema/schema.prisma">
@@ -7901,98 +8338,6 @@ enum UserTier {
     PRO
     MAX
 }
-</file>
-
-<file path="src/routes/core.ts">
-import type { Route } from '@/lib/core/types/routes';
-import { LuNewspaper, LuTable2, LuFileText } from 'react-icons/lu';
-const coreRoutes: Route[] = [
-	{
-		path: '/',
-		displayPath: '/',
-		displayName: 'Feed',
-		type: 'public',
-		category: 'ancillary',
-		icon: LuNewspaper,
-		primaryNav: true,
-	},
-	{
-		path: '/thread/:slugId*',
-		displayPath: '/thread',
-		displayName: 'Thread',
-		type: 'public',
-		category: 'ancillary',
-	},
-	{
-		path: '/posts',
-		displayPath: '/posts',
-		displayName: 'Your Posts',
-		type: 'public',
-		category: 'ancillary',
-	},
-	{
-		path: '/track',
-		displayPath: '/track',
-		displayName: 'Track',
-		type: 'private',
-		category: 'ancillary',
-		icon: LuTable2,
-		primaryNav: true,
-	},
-	{
-		path: '/track/visualize/:path*',
-		displayPath: '/track/visualize',
-		displayName: 'Visualize Tracking',
-		type: 'private',
-		category: 'ancillary',
-	},
-	{
-		path: '/notes',
-		displayPath: '/notes',
-		displayName: 'Notes',
-		type: 'private',
-		category: 'ancillary',
-		icon: LuFileText,
-	},
-];
-export { coreRoutes };
-</file>
-
-<file path="src/routes/menubar.ts">
-import type { Route } from '@/lib/core/types/routes';
-import { LuNotebook, LuSearch } from 'react-icons/lu';
-const menubarRoutes: Route[] = [
-	{
-		path: '/notes',
-		displayPath: '/notes',
-		displayName: 'Notes',
-		type: 'public',
-		category: 'feature',
-		icon: LuNotebook,
-	},
-	{
-		path: '/feature-2',
-		displayPath: '/feature-2',
-		displayName: 'Feature Two',
-		type: 'public',
-		category: 'feature',
-		icon: LuSearch,
-	},
-];
-export { menubarRoutes };
-</file>
-
-<file path="src/trpc/server/api/site/root.ts">
-import { settingsRouter } from '@/features/settings/api';
-import { createCallerFactory, createTRPCRouter } from './trpc';
-import { userNotesFeatureRouter } from "@/features/user-notes/api";
-export const appRouter = createTRPCRouter({
-    settings: settingsRouter,
-    userNotes: userNotesFeatureRouter
-});
-export type AppRouter = typeof appRouter;
-export const createCaller = createCallerFactory(appRouter);
-export default appRouter;
 </file>
 
 </files>
