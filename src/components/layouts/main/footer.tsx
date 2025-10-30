@@ -10,17 +10,13 @@ import { LuMenu, LuX } from 'react-icons/lu';
 
 const Footer = () => {
 	const pathname = usePathname();
-	const { menubar, setMenubar } = useLayoutStore();
+	const { menubar, toggleMenubar, closeMobileMenubar } = useLayoutStore();
 
 	// Filter routes marked for primary navigation
 	const primaryNavRoutes = routes.filter((route: Route) => route.primaryNav);
 
 	const handleMenubarToggle = () => {
-		setMenubar(!menubar);
-	};
-
-	const handleNavigation = () => {
-		setMenubar(false);
+		toggleMenubar();
 	};
 
 	return (
@@ -82,11 +78,11 @@ const Footer = () => {
 							// If clicking the current route, prevent navigation and just close menubar
 							if (isCurrentRoute) {
 								e.preventDefault();
-								handleNavigation();
+								closeMobileMenubar();
 								return;
 							}
 							// Otherwise, allow navigation to proceed and close menubar
-							handleNavigation();
+							closeMobileMenubar();
 						}}
 						aria-label={route.displayName}
 						variant='ghost'

@@ -58,7 +58,7 @@ const menuItemVariants = {
 };
 
 const Menubar = () => {
-	const { menubar, setMenubar } = useLayoutStore();
+	const { toggleMenubar } = useLayoutStore();
 	const currentPath = usePathname();
 	const { data: session, isPending } = useSession();
 
@@ -91,7 +91,7 @@ const Menubar = () => {
 				<Button
 					variant='ghost'
 					size='icon'
-					onClick={() => setMenubar(!menubar)}
+					onClick={() => toggleMenubar()}
 					aria-label='Close menu'
 				>
 					<LuX className='flex size-4 md:hidden' />

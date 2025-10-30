@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import { BREAKPOINTS } from '@/lib/ui/breakpoints';
 
 const getDevice = (): 'mobile' | 'tablet' | 'desktop' | null => {
 	if (typeof window === 'undefined') return null;
 
-	return window.matchMedia('(min-width: 1024px)').matches
+	return window.matchMedia(`(min-width: ${BREAKPOINTS.lg}px)`).matches
 		? 'desktop'
-		: window.matchMedia('(min-width: 769px)').matches
+		: window.matchMedia(`(min-width: ${BREAKPOINTS.md}px)`).matches
 			? 'tablet'
 			: 'mobile';
 };

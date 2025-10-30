@@ -1,7 +1,6 @@
 'use client';
 
 import Link from '@/components/ui/link';
-import { useMediaQuery } from '@/hooks';
 import { cn } from '@/lib/core/utils';
 import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
 import { usePathname } from 'next/navigation';
@@ -100,8 +99,7 @@ const NavMenu: React.FC<NavMenuProps> = ({
 	onItemClick,
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
-	const { isMobile } = useMediaQuery();
-	const { setMenubar } = useLayoutStore();
+	const { closeMobileMenubar } = useLayoutStore();
 	const pathname = usePathname();
 
 	// Validate and memoize items to ensure link items have href
@@ -132,10 +130,8 @@ const NavMenu: React.FC<NavMenuProps> = ({
 	const handleCloseDropdown = useCallback(() => {
 		onItemClick?.();
 		setIsOpen(false);
-		if (isMobile) {
-			setMenubar(false);
-		}
-	}, [isMobile, setMenubar, onItemClick]);
+		closeMobileMenubar();
+	}, [closeMobileMenubar, onItemClick]);
 
 	return (
 		<DropdownMenu open={isOpen} onOpenChange={setIsOpen}>

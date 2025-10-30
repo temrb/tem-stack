@@ -9,7 +9,7 @@ import { LuPanelLeftOpen } from 'react-icons/lu';
 import HeaderAction from './header-action';
 
 const Header = () => {
-	const { menubar, setMenubar } = useLayoutStore();
+	const { menubar, toggleMenubar } = useLayoutStore();
 	const currentPath = usePathname();
 
 	// Find the current route
@@ -38,7 +38,7 @@ const Header = () => {
 					}
 					variant='ghost'
 					size='icon'
-					onClick={() => setMenubar(!menubar)}
+					onClick={() => toggleMenubar()}
 					disabled={menubar}
 					aria-label='Open menu'
 					icon={<LuPanelLeftOpen className='size-4' />}

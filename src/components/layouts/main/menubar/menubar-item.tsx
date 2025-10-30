@@ -1,7 +1,6 @@
 // src/components/layouts/main/menubar/menubar-item.tsx
 'use client';
 import { Button } from '@/components/ui/button';
-import { useMediaQuery } from '@/hooks';
 import type { Route } from '@/lib/core/types/routes';
 import { cn } from '@/lib/core/utils';
 import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
@@ -19,20 +18,13 @@ const MenubarItem = (props: Route) => {
 		icon: Icon,
 	} = props;
 	const currentPath = usePathname();
-	const { setMenubar } = useLayoutStore();
-	const { isMobile } = useMediaQuery();
+	const { closeMobileMenubar } = useLayoutStore();
 
 	const navigationPath = displayPath || path;
 	const isActive =
 		currentPath === navigationPath ||
 		(navigationPath !== '/' &&
 			currentPath.startsWith(navigationPath + '/'));
-
-	const handleMenubarClose = () => {
-		if (isMobile) {
-			setMenubar(false);
-		}
-	};
 
 	const baseStyles =
 		'flex w-full items-center justify-start gap-3 md:px-3 md:py-1 p-4 text-sm font-medium md:rounded-sm';
@@ -61,7 +53,7 @@ const MenubarItem = (props: Route) => {
 		<Button
 			variant={isActive ? 'default' : 'ghost'}
 			href={isActive ? undefined : navigationPath}
-			onClick={handleMenubarClose}
+			onClick={closeMobileMenubar}
 			aria-label={displayName}
 			aria-current={isActive ? 'page' : undefined}
 			// disabled={isActive}

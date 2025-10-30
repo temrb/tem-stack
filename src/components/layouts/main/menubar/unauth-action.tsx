@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import SupportButton from '@/components/ui/button/support-button';
 import Logo from '@/components/ui/logo';
-import { useMediaQuery } from '@/hooks';
 import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
 
 const people = [
@@ -60,15 +59,7 @@ const UnAuthAction = () => {
 export default UnAuthAction;
 
 const SignInSection = () => {
-	const { setMenubar } = useLayoutStore();
-	const { isMobile } = useMediaQuery();
-
-	const handleClick = () => {
-		// Only toggle menubar state if on mobile device
-		if (isMobile) {
-			setMenubar(false);
-		}
-	};
+	const { closeMobileMenubar } = useLayoutStore();
 
 	return (
 		<div className='flex h-full w-full flex-row items-center justify-between space-x-2'>
@@ -79,7 +70,7 @@ const SignInSection = () => {
 					aria-label='Sign In'
 					size='sm'
 					className='font-semibold'
-					onClick={handleClick}
+					onClick={closeMobileMenubar}
 			/>
 			<SupportButton variant='ghost' size='icon' />
 			</div>
