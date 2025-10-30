@@ -7,7 +7,7 @@ import { validateAriaProps } from '@/lib/core/types/aria-utils';
 import { cn } from '@/lib/core/utils';
 import { Slot } from '@radix-ui/react-slot';
 import { usePathname } from 'next/navigation';
-import type { MouseEvent, ReactNode } from 'react';
+import type { MouseEvent, ReactNode, RefObject } from 'react';
 import { forwardRef, useCallback, useEffect, useRef } from 'react';
 import { ButtonWithTooltip } from './components/button-with-tooltip';
 import { LinkButton } from './components/link-button';
@@ -70,7 +70,9 @@ const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonProps>(
 		const Comp = asChild ? Slot : 'button';
 
 		// Internal ref for keyboard shortcut handling
-		const buttonRef = useRef<HTMLButtonElement | HTMLAnchorElement | null>(null);
+		const buttonRef = useRef<HTMLButtonElement | HTMLAnchorElement | null>(
+			null,
+		);
 
 		// Merge internal ref with forwarded ref
 		const setButtonRef = useCallback(
@@ -80,7 +82,11 @@ const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonProps>(
 				if (typeof ref === 'function') {
 					ref(node);
 				} else {
-					(ref as React.MutableRefObject<HTMLButtonElement | HTMLAnchorElement | null>).current = node;
+					(
+						ref as RefObject<
+							HTMLButtonElement | HTMLAnchorElement | null
+						>
+					).current = node;
 				}
 			},
 			[ref],

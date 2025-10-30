@@ -57,10 +57,7 @@ const MenubarItem = (props: Route) => {
 			aria-label={displayName}
 			aria-current={isActive ? 'page' : undefined}
 			disabled={isActive}
-			className={cn(
-				baseStyles,
-				!isActive && 'text-muted-foreground',
-			)}
+			className={cn(baseStyles, !isActive && 'text-muted-foreground')}
 			icon={
 				Icon && (
 					<Icon className='size-4 flex-shrink-0' aria-hidden='true' />
