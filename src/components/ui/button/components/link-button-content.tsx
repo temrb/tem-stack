@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from 'react';
+import type { ForwardedRef, ReactNode } from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { useLinkStatus } from 'next/link';
 import { cn } from '@/lib/core/utils';
@@ -13,7 +13,7 @@ export interface LinkButtonContentProps {
 	pendingClassName?: string;
 	disabledTooltip?: ReactNode;
 	renderContent: (isLoadingOverride?: boolean) => ReactNode;
-	ref?: Ref<HTMLButtonElement>;
+	ref?: ForwardedRef<HTMLButtonElement | HTMLAnchorElement>;
 	restProps: Record<string, unknown>;
 }
 
@@ -42,7 +42,7 @@ export function LinkButtonContent({
 
 	return (
 		<Comp
-			ref={ref}
+			ref={ref as React.Ref<HTMLButtonElement>}
 			disabled={combinedDisabled}
 			title={
 				disabledTooltip && combinedDisabled

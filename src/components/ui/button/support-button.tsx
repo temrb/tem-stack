@@ -39,9 +39,7 @@ const SupportButton = ({
 			iconPosition='left'
 			aria-label={size === 'icon' ? 'Get Support' : text}
 			tooltipContent={
-				size === 'icon' ? (
-					<p className='text-sm'>Get support or request features!</p>
-				) : undefined
+				<p className='text-sm'>Get support or request features!</p>
 			}
 			tooltipSide='top'
 		>

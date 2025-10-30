@@ -7,8 +7,8 @@ import { validateAriaProps } from '@/lib/core/types/aria-utils';
 import { cn } from '@/lib/core/utils';
 import { Slot } from '@radix-ui/react-slot';
 import { usePathname } from 'next/navigation';
-import type { MouseEvent, ReactNode, Ref } from 'react';
-import { useCallback, useEffect } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
+import { forwardRef, useCallback, useEffect } from 'react';
 import { ButtonWithTooltip } from './components/button-with-tooltip';
 import { LinkButton } from './components/link-button';
 import { useButtonAuth } from './hooks';
@@ -19,9 +19,8 @@ import { buttonVariants, renderButtonContent } from './lib/utils';
 // Main Button Component
 // ============================================================================
 
-const Button = (
-	props: ButtonProps & { ref?: Ref<HTMLButtonElement | HTMLAnchorElement> },
-) => {
+const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonProps>(
+	(props, ref) => {
 	const {
 		className,
 		variant,
@@ -49,7 +48,6 @@ const Button = (
 		tooltipSide,
 		tooltipSideOffset,
 		tooltipContentClassName,
-		ref,
 		...restProps
 	} = props;
 
@@ -160,7 +158,7 @@ const Button = (
 				pendingClassName={pendingClassName}
 				disabledTooltip={disabledTooltip}
 				renderContent={renderContent}
-				ref={ref as Ref<HTMLButtonElement>}
+				ref={ref}
 				restProps={restProps}
 				tooltipContent={tooltipContent}
 				tooltipSide={tooltipSide}
@@ -175,7 +173,7 @@ const Button = (
 	const buttonElement = (
 		<Comp
 			className={cn(buttonVariants({ variant, size }), className)}
-			ref={ref as Ref<HTMLButtonElement>}
+			ref={ref as React.Ref<HTMLButtonElement>}
 			disabled={isDisabled}
 			onClick={handleClick}
 			aria-busy={loading ? 'true' : undefined}
@@ -206,7 +204,8 @@ const Button = (
 	}
 
 	return buttonElement;
-};
+	},
+);
 
 Button.displayName = 'Button';
 

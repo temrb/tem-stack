@@ -1,15 +1,6 @@
-import type { ReactNode } from 'react';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { cn } from '@/lib/core/utils';
-
-interface ButtonWithTooltipProps {
-	tooltipContent?: ReactNode;
-	tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
-	tooltipSideOffset?: number;
-	tooltipContentClassName?: string;
-	isMobile: boolean;
-	children: ReactNode;
-}
+import type { ButtonWithTooltipProps } from '../lib/types';
 
 /**
  * Wrapper component that conditionally adds tooltip functionality

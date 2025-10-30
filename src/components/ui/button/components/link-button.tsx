@@ -1,15 +1,15 @@
-import type { MouseEvent, ReactNode, Ref } from 'react';
+import type { ForwardedRef, MouseEvent, ReactNode } from 'react';
 import Link from '../../link';
 import { cn } from '@/lib/core/utils';
-import type { ButtonProps } from '../lib/types';
+import type { ButtonProps, TooltipProps } from '../lib/types';
 import { buttonVariants } from '../lib/utils';
 import { ButtonWithTooltip } from './button-with-tooltip';
 import { LinkButtonContent } from './link-button-content';
 
-export interface LinkButtonProps {
+export interface LinkButtonProps extends TooltipProps {
 	href: string;
 	newTab?: boolean;
-	prefetch?: boolean | null;
+	prefetch?: boolean | 'auto' | null;
 	loading: boolean;
 	disabled?: boolean;
 	disableWhilePending?: boolean;
@@ -23,12 +23,8 @@ export interface LinkButtonProps {
 	pendingClassName?: string;
 	disabledTooltip?: ReactNode;
 	renderContent: (isLoadingOverride?: boolean) => ReactNode;
-	ref?: Ref<HTMLButtonElement>;
+	ref?: ForwardedRef<HTMLButtonElement | HTMLAnchorElement>;
 	restProps: Record<string, unknown>;
-	tooltipContent?: ReactNode;
-	tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
-	tooltipSideOffset?: number;
-	tooltipContentClassName?: string;
 	isMobile: boolean;
 }
 
