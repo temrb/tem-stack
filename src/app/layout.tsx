@@ -88,6 +88,16 @@ export const metadata: Metadata = {
 	},
 };
 
+/**
+ * Root layout component that wraps every page with app-level providers, layout, analytics, and structured data.
+ *
+ * Inserts JSON-LD for organization and website into the document head, renders the Analytics component, and
+ * composes the document body with the configured local font, Providers, MainLayout (which renders `children`),
+ * and the SpeedInsights component.
+ *
+ * @param children - The page content to render inside the main layout.
+ * @returns The root `<html>` element containing the `<head>` (analytics and JSON-LD scripts) and the `<body>` with providers and layout.
+ */
 export default function RootLayout({
 	children,
 }: Readonly<{

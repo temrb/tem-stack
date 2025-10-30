@@ -904,7 +904,13 @@ async function removeHeaderActionsRegistry(name, project) {
 	log.success('Removed from header actions registry');
 }
 
-// --- MAIN EXECUTION ---
+/**
+ * CLI entry point that parses command-line arguments and either scaffolds a new feature or removes an existing one.
+ *
+ * Parses flags and positional arguments, supports interactive prompts when values are missing, validates the
+ * feature name (kebab-case), and dispatches to creation or removal routines. Handles --help output, module
+ * selection for scaffolding, and exits with appropriate status on validation errors or user cancellation.
+ */
 
 async function main() {
 	console.log(chalk.bold.cyan('\n🎨 Feature Scaffolding Tool\n'));

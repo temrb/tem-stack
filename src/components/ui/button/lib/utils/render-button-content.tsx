@@ -19,7 +19,26 @@ interface RenderButtonContentProps {
 }
 
 /**
- * Renders button content with icons, text, shortcuts, and count badge
+ * Render the visual content for a button, composing optional icon/spinner, text/children, shortcut hint, and count badge.
+ *
+ * Children take precedence over `text` when both are provided.
+ *
+ * - If `loading` is true a spinner replaces the icon slot.
+ * - If only an icon (or spinner) is provided with no text/shortcut, that icon is returned directly.
+ * - If only text/children are provided with no icon/shortcut, the text/children are returned (wrapped with `textWrapperClassName` when present).
+ * - When multiple parts are present, content is rendered with an optional left/right icon, an optional small count badge when `count > 0`, and an optional formatted shortcut hint (hidden on mobile when `isMobile` is true).
+ *
+ * @param children - Optional React node content; takes precedence over `text`.
+ * @param text - Fallback string content when `children` is not provided.
+ * @param loading - When true, show a loading spinner in place of the icon slot.
+ * @param icon - Optional icon node to render on the left or right.
+ * @param iconPosition - Position of the icon relative to the content; either `'left'` or `'right'`.
+ * @param size - Button size hint used to determine spinner size when loading.
+ * @param shortcut - Optional keyboard shortcut string to display as a compact hint; hidden on mobile (`isMobile`).
+ * @param count - Optional numeric badge; rendered when greater than 0.
+ * @param isMobile - When true, the shortcut hint is not shown.
+ * @param textWrapperClassName - Optional class name applied to the text wrapper when text/children are rendered.
+ * @returns The composed ReactNode to be used as button content.
  */
 export function renderButtonContent({
 	children,
