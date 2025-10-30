@@ -3,7 +3,6 @@ import { cn } from '@/lib/core/utils';
 import type { ReactNode } from 'react';
 import { LuLifeBuoy } from 'react-icons/lu';
 import { Button } from '.';
-import { Tooltip } from '../tooltip';
 import type { ButtonProps } from './lib/types';
 
 interface SupportButtonProps {
@@ -26,13 +25,9 @@ const SupportButton = ({
 	disabled = false,
 }: SupportButtonProps) => {
 	const shouldShowIcon = showIcon || size === 'icon';
-	const displayIcon = icon ?? (
-		<LuLifeBuoy
-			className='size-4'
-		/>
-	);
+	const displayIcon = icon ?? <LuLifeBuoy className='size-4' />;
 
-	const buttonElement = (
+	return (
 		<Button
 			href={env.NEXT_PUBLIC_FEATUREBASE_URL}
 			newTab
@@ -43,25 +38,16 @@ const SupportButton = ({
 			icon={shouldShowIcon ? displayIcon : undefined}
 			iconPosition='left'
 			aria-label={size === 'icon' ? 'Get Support' : text}
+			tooltipContent={
+				size === 'icon' ? (
+					<p className='text-sm'>Get support or request features!</p>
+				) : undefined
+			}
+			tooltipSide='top'
 		>
 			{size === 'icon' ? undefined : text}
 		</Button>
 	);
-
-	// Automatically wrap with tooltip if size is 'icon'
-	if (size === 'icon') {
-		return (
-			<Tooltip
-				trigger={buttonElement}
-				content={
-					<p className='text-sm'>Get support or request features!</p>
-				}
-				side='top'
-			/>
-		);
-	}
-
-	return buttonElement;
 };
 
 export default SupportButton;
