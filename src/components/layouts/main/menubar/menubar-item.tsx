@@ -35,12 +35,12 @@ const MenubarItem = (props: Route) => {
 	};
 
 	const baseStyles =
-		'flex w-full items-center justify-start gap-3 md:px-3 md:py-1 p-4 text-sm font-medium text-muted-foreground md:rounded-sm';
+		'flex w-full items-center justify-start gap-3 md:px-3 md:py-1 p-4 text-sm font-medium md:rounded-sm';
 
 	if (status) {
 		return (
 			<div
-				className={cn(baseStyles, 'cursor-default opacity-60')}
+				className={cn(baseStyles)}
 				aria-label={`${displayName} - ${status}`}
 			>
 				{Icon && (
@@ -59,30 +59,28 @@ const MenubarItem = (props: Route) => {
 
 	return (
 		<Button
-			variant='ghost'
+			variant={isActive ? 'default' : 'ghost'}
 			href={isActive ? undefined : navigationPath}
 			onClick={handleMenubarClose}
 			aria-label={displayName}
 			aria-current={isActive ? 'page' : undefined}
-			disabled={isActive}
+			// disabled={isActive}
 			className={cn(
 				baseStyles,
-				isActive && 'pointer-events-none bg-foreground text-background',
+				isActive
+					? 'pointer-events-none'
+					: 'pointer-events-auto text-muted-foreground',
 			)}
 			icon={
 				Icon && (
-					<Icon
-						className='h-4 w-4 flex-shrink-0'
-						aria-hidden='true'
-					/>
+					<Icon className='size-4 flex-shrink-0' aria-hidden='true' />
 				)
 			}
 			iconPosition='left'
 			disableWhilePending={true}
 			prefetch={false}
-		>
-			{displayName}
-		</Button>
+			text={displayName}
+		/>
 	);
 };
 

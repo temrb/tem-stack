@@ -10,7 +10,6 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 // @ts-ignore - allow side-effect global CSS import without declarations
-import { useMemo } from 'react';
 import '../styles/globals.css';
 
 const hubot = localFont({
@@ -94,11 +93,8 @@ export default function RootLayout({
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
-	const organizationSchema = useMemo(
-		() => createOrganizationStructuredData(),
-		[],
-	);
-	const websiteSchema = useMemo(() => createWebSiteStructuredData(), []);
+	const organizationSchema = createOrganizationStructuredData();
+	const websiteSchema = createWebSiteStructuredData();
 
 	return (
 		<html lang='en' suppressHydrationWarning>

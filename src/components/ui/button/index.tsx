@@ -67,7 +67,7 @@ const LinkButtonContent = ({
 			}
 			className={cn(
 				asChild ? className : '',
-				pending && (pendingClassName || 'cursor-progress'),
+				combinedDisabled && (pendingClassName || 'cursor-progress'),
 			)}
 			{...restProps}
 		>
@@ -130,7 +130,7 @@ const LinkButton = ({
 			className={cn(
 				buttonVariants({ variant, size }),
 				className,
-				'[&:has(button:disabled)]:pointer-events-none [&:has(button:disabled)]:cursor-progress',
+				'[&:has(button:disabled)]:cursor-progress',
 			)}
 		>
 			<LinkButtonContent
