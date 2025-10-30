@@ -56,8 +56,13 @@ const MenubarItem = (props: Route) => {
 			onClick={closeMobileMenubar}
 			aria-label={displayName}
 			aria-current={isActive ? 'page' : undefined}
-			disabled={isActive}
-			className={cn(baseStyles, !isActive && 'text-muted-foreground')}
+			// disabled={isActive}
+			className={cn(
+				baseStyles,
+				isActive
+					? 'pointer-events-none'
+					: 'pointer-events-auto text-muted-foreground',
+			)}
 			icon={
 				Icon && (
 					<Icon className='size-4 flex-shrink-0' aria-hidden='true' />
