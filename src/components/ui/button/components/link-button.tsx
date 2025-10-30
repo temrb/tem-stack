@@ -1,6 +1,6 @@
+import { cn } from '@/lib/core/utils';
 import type { ForwardedRef, MouseEvent, ReactNode } from 'react';
 import Link from '../../link';
-import { cn } from '@/lib/core/utils';
 import type { ButtonProps, TooltipProps } from '../lib/types';
 import { buttonVariants } from '../lib/utils';
 import { ButtonWithTooltip } from './button-with-tooltip';
@@ -60,7 +60,10 @@ export function LinkButton({
 			prefetch={prefetch}
 			aria-label={restProps['aria-label'] as string | undefined}
 			onClick={(e: MouseEvent<HTMLAnchorElement>) => {
-				if (handleAuthRedirect(e)) return;
+				if (handleAuthRedirect(e)) {
+					e.preventDefault();
+					return;
+				}
 				onClick?.(e as unknown as MouseEvent<HTMLButtonElement>);
 			}}
 			className={cn(

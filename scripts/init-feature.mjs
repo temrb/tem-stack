@@ -12,16 +12,16 @@
  * - modals.ts - Modal definitions (optional)
  *
  * Usage:
- *   npm run create                              # Interactive mode
- *   npm run create -- my-feature                # Positional argument
- *   npm run create -- --name=my-feature         # Using --name flag
- *   npm run create -- --feature-name=my-feature # Using --feature-name flag
- *   npm run create -- -n my-feature             # Using -n short flag
- *   npm run create -- -f my-feature             # Using -f short flag
+ *   npm run create                                    # Interactive mode
+ *   npm run create -- my-feature                      # Positional argument
+ *   npm run create -- --name=my-feature               # Using --name flag
+ *   npm run create -- --remove my-feature             # Remove a feature
+ *   npm run create -- --dry-run my-feature            # Preview feature creation
+ *   npm run create -- --remove --dry-run my-feature   # Preview feature removal
  */
 
 import chalk from 'chalk';
-import { access, mkdir, writeFile } from 'fs/promises';
+import { access, mkdir, rm, writeFile } from 'fs/promises';
 import minimist from 'minimist';
 import path from 'path';
 import prompts from 'prompts';
@@ -42,6 +42,7 @@ const log = {
 	error: (msg) => console.log(chalk.red(`✗ ${msg}`)),
 	step: (msg) => console.log(`\n${chalk.cyan.bold(`━━━ ${msg}`)}`),
 	dim: (msg) => console.log(chalk.dim(`  ${msg}`)),
+	dryRun: (msg) => console.log(chalk.magenta(`[DRY RUN] ${msg}`)),
 };
 
 const kebabToPascal = (s) =>
@@ -56,11 +57,7 @@ const kebabToTitle = (s) =>
 		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
 		.join(' ');
 
-// --- TEMPLATES ---
-
-/**
- * API Module Templates
- */
+// --- TEMPLATES (Identical to original, omitted for brevity) ---
 
 const getApiIndexTemplate = (name) => `import { createTRPCRouter } from '@/trpc/server/api/site/trpc';
 import { ${kebabToCamel(name)}Router } from './${name}';
@@ -143,10 +140,6 @@ export const getExample = async (id: string) => {
 };
 `;
 
-/**
- * Component Templates
- */
-
 const getComponentTemplate = (name) => `/**
  * ${kebabToTitle(name)} Component
  *
@@ -212,10 +205,6 @@ const Example${kebabToPascal(name)}Modal = () => {
 export default Example${kebabToPascal(name)}Modal;
 `;
 
-/**
- * Lib Templates
- */
-
 const getLibTypesTemplate = (name) => `/**
  * ${kebabToTitle(name)} Feature Types
  *
@@ -227,9 +216,6 @@ export interface Example${kebabToPascal(name)}Type {
 	name: string;
 	// Add your properties
 }
-
-// Export all types
-export type {};
 `;
 
 const getLibValidationTemplate = (name) => `import * as z from 'zod';
@@ -258,10 +244,6 @@ export const Example${kebabToPascal(name)}Schema = z.object({
 export type Example${kebabToPascal(name)}Input = z.infer<typeof Example${kebabToPascal(name)}Schema>;
 `;
 
-/**
- * Pages Templates
- */
-
 const getPagesIndexTemplate = (name) => `/**
  * ${kebabToTitle(name)} Page
  *
@@ -279,10 +261,6 @@ const ${kebabToPascal(name)}Page = () => {
 
 export default ${kebabToPascal(name)}Page;
 `;
-
-/**
- * Header Actions & Modals Templates
- */
 
 const getHeaderActionsTemplate = (name) => `import { lazy } from 'react';
 import { createHeaderActionDefinition } from '@/lib/ui/header-actions';
@@ -340,10 +318,11 @@ export const example${kebabToPascal(name)}Modal = createModalDefinition({
 
 // --- FILE CREATION LOGIC ---
 
-async function createFeature(name, modules) {
+async function createFeature(name, modules, { dryRun = false } = {}) {
 	const basePath = path.join(PROJECT_ROOT, 'src', 'features', name);
 	log.step(`Scaffolding feature '${name}'`);
 	log.dim(`Location: ${basePath}`);
+	if (dryRun) log.dryRun('Dry run mode is enabled. No files will be modified.');
 
 	// Check if feature already exists
 	try {
@@ -355,7 +334,11 @@ async function createFeature(name, modules) {
 	}
 
 	// Create base directory
-	await mkdir(basePath, { recursive: true });
+	if (dryRun) {
+		log.dryRun(`Would create directory: ${basePath}`);
+	} else {
+		await mkdir(basePath, { recursive: true });
+	}
 	log.success('Created feature directory');
 
 	// Initialize ts-morph project for registry updates
@@ -366,74 +349,106 @@ async function createFeature(name, modules) {
 	const createdFiles = [];
 	const updatedFiles = [];
 
-	// Create selected modules
-	for (const module of modules) {
-		switch (module) {
-			case 'api':
-				await createApiModule(name, basePath, project, createdFiles);
-				updatedFiles.push('src/trpc/server/api/site/root.ts');
-				break;
-			case 'components':
-				await createComponentsModule(name, basePath, createdFiles);
-				break;
-			case 'lib':
-				await createLibModule(name, basePath, createdFiles);
-				break;
-			case 'pages':
-				await createPagesModule(name, basePath, createdFiles);
-				break;
-			case 'header-actions':
-				await createHeaderActionsModule(name, basePath, project, createdFiles, modules);
-				updatedFiles.push('src/components/layouts/main/header/header-actions/registry.ts');
-				break;
-			case 'modals':
-				await createModalsModule(name, basePath, project, createdFiles, modules);
-				updatedFiles.push('src/modals/registry.ts');
-				break;
+	try {
+		// Create selected modules
+		for (const module of modules) {
+			const options = { dryRun, createdFiles };
+			switch (module) {
+				case 'api':
+					await createApiModule(name, basePath, project, options);
+					updatedFiles.push('src/trpc/server/api/site/root.ts');
+					break;
+				case 'components':
+					await createComponentsModule(name, basePath, options);
+					break;
+				case 'lib':
+					await createLibModule(name, basePath, options);
+					break;
+				case 'pages':
+					await createPagesModule(name, basePath, options);
+					break;
+				case 'header-actions':
+					await createHeaderActionsModule(name, basePath, project, modules, options);
+					updatedFiles.push('src/components/layouts/main/header/header-actions/registry.ts');
+					break;
+				case 'modals':
+					await createModalsModule(name, basePath, project, modules, options);
+					updatedFiles.push('src/modals/registry.ts');
+					break;
+			}
 		}
-	}
 
-	// Save all ts-morph changes
-	await project.save();
+		// Save all ts-morph changes
+		if (dryRun) {
+			log.dryRun('Would save changes to all modified source files.');
+		} else {
+			await project.save();
+		}
 
-	if (updatedFiles.length > 0) {
-		log.success('Updated registry files');
-	}
+		if (updatedFiles.length > 0) {
+			log.success('Updated registry files');
+		}
 
-	// Print summary
-	log.step('🚀 Feature creation complete!');
-	console.log();
-	console.log(chalk.bold('Created files:'));
-	createdFiles.forEach((file) => log.dim(file));
-
-	if (updatedFiles.length > 0) {
+		// Print summary
+		log.step('🚀 Feature creation complete!');
 		console.log();
-		console.log(chalk.bold('Updated files:'));
-		updatedFiles.forEach((file) => log.dim(file));
-	}
+		console.log(chalk.bold('Created files:'));
+		createdFiles.forEach((file) => log.dim(file));
 
-	console.log();
-	log.info('Next steps:');
-	log.dim('1. Run \'npm install\' to install any missing dependencies');
-	log.dim('2. Add a route in \'src/routes/\' if this feature needs a URL');
-	log.dim('3. Start implementing your feature logic!');
+		if (updatedFiles.length > 0) {
+			console.log();
+			console.log(chalk.bold('Updated files:'));
+			updatedFiles.forEach((file) => log.dim(file));
+		}
+
+		console.log();
+		log.info('Next steps:');
+		log.dim('1. Add a route in \'src/routes/\' if this feature needs a URL');
+		log.dim('2. Start implementing your feature logic!');
+	} catch (error) {
+		log.error(`An error occurred during feature creation: ${error.message}`);
+		log.warn('The project may be in an inconsistent state.');
+
+		if (!dryRun) {
+			const { confirmCleanup } = await prompts({
+				type: 'confirm',
+				name: 'confirmCleanup',
+				message: `Attempt to roll back changes and remove the partially created feature '${name}'?`,
+				initial: true,
+			});
+
+			if (confirmCleanup) {
+				await removeFeature(name, { force: true, dryRun: false });
+			}
+		}
+		process.exit(1);
+	}
 }
 
-async function createApiModule(name, basePath, project, createdFiles) {
+async function createApiModule(name, basePath, project, { dryRun, createdFiles }) {
 	log.info('Creating API module...');
-
 	const apiPath = path.join(basePath, 'api');
 	const servicesPath = path.join(apiPath, 'services');
 
-	await mkdir(servicesPath, { recursive: true });
+	if (dryRun) {
+		log.dryRun(`Would create directory: ${servicesPath}`);
+	} else {
+		await mkdir(servicesPath, { recursive: true });
+	}
 
-	const indexFile = path.join(apiPath, 'index.ts');
-	const routerFile = path.join(apiPath, `${name}.ts`);
-	const serviceFile = path.join(servicesPath, `${name}.service.ts`);
+	const filesToWrite = {
+		[path.join(apiPath, 'index.ts')]: getApiIndexTemplate(name),
+		[path.join(apiPath, `${name}.ts`)]: getApiModuleTemplate(name),
+		[path.join(servicesPath, `${name}.service.ts`)]: getApiServiceTemplate(name),
+	};
 
-	await writeFile(indexFile, getApiIndexTemplate(name));
-	await writeFile(routerFile, getApiModuleTemplate(name));
-	await writeFile(serviceFile, getApiServiceTemplate(name));
+	for (const [filePath, content] of Object.entries(filesToWrite)) {
+		if (dryRun) {
+			log.dryRun(`Would write file: ${filePath}`);
+		} else {
+			await writeFile(filePath, content);
+		}
+	}
 
 	createdFiles.push(
 		`src/features/${name}/api/index.ts`,
@@ -442,269 +457,254 @@ async function createApiModule(name, basePath, project, createdFiles) {
 	);
 
 	log.success('Created API module');
-
-	// Update tRPC root router
-	await updateTrpcRoot(name, project);
+	await updateTrpcRoot(name, project, { dryRun });
 }
 
-async function createComponentsModule(name, basePath, createdFiles, minimal = false) {
+async function createComponentsModule(name, basePath, { dryRun, createdFiles, minimal = false }) {
 	log.info('Creating components module...');
-
 	const componentsPath = path.join(basePath, 'components');
-	await mkdir(componentsPath, { recursive: true });
+
+	if (dryRun) {
+		log.dryRun(`Would create directory: ${componentsPath}`);
+	} else {
+		await mkdir(componentsPath, { recursive: true });
+	}
+	const componentsDirRelative = `src/features/${name}/components/`;
+	createdFiles.push(componentsDirRelative);
 
 	if (!minimal) {
 		const componentFile = path.join(componentsPath, `${name}-component.tsx`);
-		await writeFile(componentFile, getComponentTemplate(name));
-		createdFiles.push(`src/features/${name}/components/${name}-component.tsx`);
+		if (dryRun) {
+			log.dryRun(`Would write file: ${componentFile}`);
+		} else {
+			await writeFile(componentFile, getComponentTemplate(name));
+		}
+		createdFiles.push(`${componentsDirRelative}${name}-component.tsx`);
 		log.success('Created components module');
 	} else {
 		log.dim('Created components directory (minimal)');
 	}
+	return componentsDirRelative;
 }
 
-async function createLibModule(name, basePath, createdFiles) {
+async function createLibModule(name, basePath, { dryRun, createdFiles }) {
 	log.info('Creating lib module...');
-
 	const libPath = path.join(basePath, 'lib');
 	const typesPath = path.join(libPath, 'types');
 	const validationPath = path.join(libPath, 'validation');
 
-	await mkdir(typesPath, { recursive: true });
-	await mkdir(validationPath, { recursive: true });
+	if (dryRun) {
+		log.dryRun(`Would create directory: ${typesPath}`);
+		log.dryRun(`Would create directory: ${validationPath}`);
+	} else {
+		await mkdir(typesPath, { recursive: true });
+		await mkdir(validationPath, { recursive: true });
+	}
 
-	const typesFile = path.join(typesPath, 'index.ts');
-	const validationFile = path.join(validationPath, `${name}.z.ts`);
+	const filesToWrite = {
+		[path.join(typesPath, 'index.ts')]: getLibTypesTemplate(name),
+		[path.join(validationPath, `${name}.z.ts`)]: getLibValidationTemplate(name),
+	};
 
-	await writeFile(typesFile, getLibTypesTemplate(name));
-	await writeFile(validationFile, getLibValidationTemplate(name));
+	for (const [filePath, content] of Object.entries(filesToWrite)) {
+		if (dryRun) {
+			log.dryRun(`Would write file: ${filePath}`);
+		} else {
+			await writeFile(filePath, content);
+		}
+	}
 
 	createdFiles.push(
 		`src/features/${name}/lib/types/index.ts`,
 		`src/features/${name}/lib/validation/${name}.z.ts`
 	);
-
 	log.success('Created lib module');
 }
 
-async function createPagesModule(name, basePath, createdFiles) {
+async function createPagesModule(name, basePath, { dryRun, createdFiles }) {
 	log.info('Creating pages module...');
-
 	const pagesPath = path.join(basePath, 'pages');
-	await mkdir(pagesPath, { recursive: true });
+
+	if (dryRun) {
+		log.dryRun(`Would create directory: ${pagesPath}`);
+	} else {
+		await mkdir(pagesPath, { recursive: true });
+	}
 
 	const pageFile = path.join(pagesPath, 'index.tsx');
-	await writeFile(pageFile, getPagesIndexTemplate(name));
-
+	if (dryRun) {
+		log.dryRun(`Would write file: ${pageFile}`);
+	} else {
+		await writeFile(pageFile, getPagesIndexTemplate(name));
+	}
 	createdFiles.push(`src/features/${name}/pages/index.tsx`);
-
 	log.success('Created pages module');
 }
 
-async function createHeaderActionsModule(name, basePath, project, createdFiles, modules) {
+async function createHeaderActionsModule(name, basePath, project, modules, { dryRun, createdFiles }) {
 	log.info('Creating header-actions module...');
-
-	const headerActionsFile = path.join(basePath, 'header-actions.ts');
-	const componentPath = path.join(basePath, 'components', `${name}-header-action.tsx`);
 
 	// Ensure components directory exists
 	if (!modules.includes('components')) {
-		await createComponentsModule(name, basePath, createdFiles, true);
-		log.warn('Created components directory for header action component');
+		log.warn('Creating components directory for header action component');
+		await createComponentsModule(name, basePath, { dryRun, createdFiles, minimal: true });
 	}
 
-	await writeFile(headerActionsFile, getHeaderActionsTemplate(name));
-	await writeFile(componentPath, getHeaderActionComponentTemplate(name));
+	const filesToWrite = {
+		[path.join(basePath, 'header-actions.ts')]: getHeaderActionsTemplate(name),
+		[path.join(basePath, 'components', `${name}-header-action.tsx`)]: getHeaderActionComponentTemplate(name),
+	};
+
+	for (const [filePath, content] of Object.entries(filesToWrite)) {
+		if (dryRun) {
+			log.dryRun(`Would write file: ${filePath}`);
+		} else {
+			await writeFile(filePath, content);
+		}
+	}
 
 	createdFiles.push(
 		`src/features/${name}/header-actions.ts`,
 		`src/features/${name}/components/${name}-header-action.tsx`
 	);
-
 	log.success('Created header-actions module');
 
-	// Update header actions registry
-	await updateHeaderActionsRegistry(name, project);
+	await updateSpreadRegistry({
+		project,
+		dryRun,
+		filePath: path.join(PROJECT_ROOT, 'src/components/layouts/main/header/header-actions/registry.ts'),
+		variableName: 'headerActionRegistry',
+		importAlias: `${kebabToCamel(name)}HeaderActions`,
+		moduleSpecifier: `@/features/${name}/header-actions`,
+	});
 }
 
-async function createModalsModule(name, basePath, project, createdFiles, modules) {
+async function createModalsModule(name, basePath, project, modules, { dryRun, createdFiles }) {
 	log.info('Creating modals module...');
-
-	const modalsFile = path.join(basePath, 'modals.ts');
 	const modalsComponentDir = path.join(basePath, 'components', 'modals');
-	const modalComponentFile = path.join(modalsComponentDir, `example-${name}-modal.tsx`);
 
 	// Ensure components directory exists
 	if (!modules.includes('components')) {
-		await createComponentsModule(name, basePath, createdFiles, true);
-		log.warn('Created components directory for modal component');
+		log.warn('Creating components directory for modal component');
+		await createComponentsModule(name, basePath, { dryRun, createdFiles, minimal: true });
 	}
 
-	await mkdir(modalsComponentDir, { recursive: true });
-	await writeFile(modalsFile, getModalsTemplate(name));
-	await writeFile(modalComponentFile, getModalComponentTemplate(name));
+	if (dryRun) {
+		log.dryRun(`Would create directory: ${modalsComponentDir}`);
+	} else {
+		await mkdir(modalsComponentDir, { recursive: true });
+	}
+
+	const filesToWrite = {
+		[path.join(basePath, 'modals.ts')]: getModalsTemplate(name),
+		[path.join(modalsComponentDir, `example-${name}-modal.tsx`)]: getModalComponentTemplate(name),
+	};
+
+	for (const [filePath, content] of Object.entries(filesToWrite)) {
+		if (dryRun) {
+			log.dryRun(`Would write file: ${filePath}`);
+		} else {
+			await writeFile(filePath, content);
+		}
+	}
 
 	createdFiles.push(
 		`src/features/${name}/modals.ts`,
 		`src/features/${name}/components/modals/example-${name}-modal.tsx`
 	);
-
 	log.success('Created modals module');
 
-	// Update modals registry
-	await updateModalsRegistry(name, project);
+	await updateSpreadRegistry({
+		project,
+		dryRun,
+		filePath: path.join(PROJECT_ROOT, 'src/modals/registry.ts'),
+		variableName: 'modalRegistry',
+		importAlias: `${kebabToCamel(name)}Modals`,
+		moduleSpecifier: `@/features/${name}/modals`,
+	});
 }
 
 // --- AST MANIPULATION ---
 
-async function updateTrpcRoot(name, project) {
+async function updateTrpcRoot(name, project, { dryRun }) {
 	log.info('Updating tRPC router registry...');
-
 	const filePath = path.join(PROJECT_ROOT, 'src/trpc/server/api/site/root.ts');
 	const sourceFile = project.addSourceFileAtPath(filePath);
 	const camelName = kebabToCamel(name);
 	const routerName = `${camelName}FeatureRouter`;
 
-	// Add import statement with object format for namedImports
-	sourceFile.addImportDeclaration({
-		moduleSpecifier: `@/features/${name}/api`,
-		namedImports: [{ name: routerName }],
-	});
+	if (dryRun) {
+		log.dryRun(`Would add import { ${routerName} } from '@/features/${name}/api' to ${filePath}`);
+	} else {
+		sourceFile.addImportDeclaration({
+			moduleSpecifier: `@/features/${name}/api`,
+			namedImports: [{ name: routerName }],
+		});
+	}
 
-	// Find the appRouter variable and its initializer
 	const appRouter = sourceFile.getVariableDeclaration('appRouter');
 	if (!appRouter) {
-		throw new Error('Could not find appRouter declaration in root.ts');
+		throw new Error(`Could not find 'appRouter' variable in '${filePath}'.`);
 	}
-
-	const callExpr = appRouter.getInitializer();
+	const callExpr = appRouter.getInitializerIfKind(SyntaxKind.CallExpression);
 	if (!callExpr) {
-		throw new Error('appRouter has no initializer');
+		throw new Error(`'appRouter' variable in '${filePath}' is not initialized with a function call.`);
+	}
+	const objLiteral = callExpr.getArguments()[0]?.asKind(SyntaxKind.ObjectLiteralExpression);
+	if (!objLiteral) {
+		throw new Error(`Could not find object literal argument in createTRPCRouter call in '${filePath}'.`);
 	}
 
-	// Get the object literal argument
-	const args = callExpr.asKindOrThrow(SyntaxKind.CallExpression).getArguments();
-	if (args.length === 0) {
-		throw new Error('createTRPCRouter has no arguments');
+	if (dryRun) {
+		log.dryRun(`Would add property '${camelName}: ${routerName}' to appRouter object.`);
+	} else {
+		objLiteral.addPropertyAssignment({ name: camelName, initializer: routerName });
+		sourceFile.formatText();
 	}
-
-	const objLiteral = args[0].asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
-
-	// Add the new router to the object
-	objLiteral.addPropertyAssignment({
-		name: camelName,
-		initializer: routerName,
-	});
-
-	// Format the file
-	sourceFile.formatText();
 
 	log.dim(`Added ${routerName} to appRouter`);
 }
 
-async function updateHeaderActionsRegistry(name, project) {
-	log.info('Updating header actions registry...');
-
-	const filePath = path.join(PROJECT_ROOT, 'src/components/layouts/main/header/header-actions/registry.ts');
+async function updateSpreadRegistry({ project, dryRun, filePath, variableName, importAlias, moduleSpecifier }) {
+	log.info(`Updating registry at ${path.basename(filePath)}...`);
 	const sourceFile = project.addSourceFileAtPath(filePath);
-	const camelName = kebabToCamel(name);
-	const importAlias = `${camelName}HeaderActions`;
 
-	// Add namespace import
-	sourceFile.addImportDeclaration({
-		moduleSpecifier: `@/features/${name}/header-actions`,
-		namespaceImport: importAlias,
-	});
-
-	// Find the headerActionRegistry variable
-	const registry = sourceFile.getVariableDeclaration('headerActionRegistry');
-	if (!registry) {
-		throw new Error('Could not find headerActionRegistry in registry.ts');
+	if (dryRun) {
+		log.dryRun(`Would add import * as ${importAlias} from '${moduleSpecifier}' to ${filePath}`);
+	} else {
+		sourceFile.addImportDeclaration({ moduleSpecifier, namespaceImport: importAlias });
 	}
 
-	// Get the object literal, handling both direct and 'as const' cases
+	const registry = sourceFile.getVariableDeclaration(variableName);
+	if (!registry) throw new Error(`Could not find '${variableName}' in ${filePath}`);
+
 	let objLiteral;
 	const initializer = registry.getInitializer();
-
-	if (initializer?.getKind() === SyntaxKind.AsExpression) {
-		// Handle: { ... } as const
-		objLiteral = initializer.getExpression();
-	} else if (initializer?.getKind() === SyntaxKind.ObjectLiteralExpression) {
-		// Handle: { ... }
-		objLiteral = initializer;
+	if (initializer?.isKind(SyntaxKind.AsExpression)) {
+		objLiteral = initializer.getExpressionIfKind(SyntaxKind.ObjectLiteralExpression);
 	} else {
-		throw new Error('Expected headerActionRegistry to have an object literal initializer');
+		objLiteral = initializer?.asKind(SyntaxKind.ObjectLiteralExpression);
 	}
+	if (!objLiteral) throw new Error(`Expected '${variableName}' to have an object literal initializer.`);
 
-	// Insert spread assignment at index 1 (after the first spread, before comments)
-	const existingSpreads = objLiteral.getProperties().filter(p => p.getKind() === SyntaxKind.SpreadAssignment);
-	const insertIndex = existingSpreads.length > 0 ? existingSpreads.length : 0;
-
-	objLiteral.insertSpreadAssignment(insertIndex, {
-		expression: importAlias,
-	});
-
-	// Format the file
-	sourceFile.formatText();
-
-	log.dim(`Added ${importAlias} to headerActionRegistry`);
-}
-
-async function updateModalsRegistry(name, project) {
-	log.info('Updating modals registry...');
-
-	const filePath = path.join(PROJECT_ROOT, 'src/modals/registry.ts');
-	const sourceFile = project.addSourceFileAtPath(filePath);
-	const camelName = kebabToCamel(name);
-	const importAlias = `${camelName}Modals`;
-
-	// Add namespace import
-	sourceFile.addImportDeclaration({
-		moduleSpecifier: `@/features/${name}/modals`,
-		namespaceImport: importAlias,
-	});
-
-	// Find the modalRegistry variable
-	const registry = sourceFile.getVariableDeclaration('modalRegistry');
-	if (!registry) {
-		throw new Error('Could not find modalRegistry in registry.ts');
-	}
-
-	// Get the object literal, handling both direct and 'as const' cases
-	let objLiteral;
-	const initializer = registry.getInitializer();
-
-	if (initializer?.getKind() === SyntaxKind.AsExpression) {
-		// Handle: { ... } as const
-		objLiteral = initializer.getExpression();
-	} else if (initializer?.getKind() === SyntaxKind.ObjectLiteralExpression) {
-		// Handle: { ... }
-		objLiteral = initializer;
+	if (dryRun) {
+		log.dryRun(`Would add spread property '...${importAlias}' to ${variableName} object.`);
 	} else {
-		throw new Error('Expected modalRegistry to have an object literal initializer');
+		const existingSpreads = objLiteral.getProperties().filter(p => p.isKind(SyntaxKind.SpreadAssignment));
+		objLiteral.insertSpreadAssignment(existingSpreads.length, { expression: importAlias });
+		sourceFile.formatText();
 	}
 
-	// Insert spread assignment at index 1 (after the first spread, before comments)
-	const existingSpreads = objLiteral.getProperties().filter(p => p.getKind() === SyntaxKind.SpreadAssignment);
-	const insertIndex = existingSpreads.length > 0 ? existingSpreads.length : 0;
-
-	objLiteral.insertSpreadAssignment(insertIndex, {
-		expression: importAlias,
-	});
-
-	// Format the file
-	sourceFile.formatText();
-
-	log.dim(`Added ${importAlias} to modalRegistry`);
+	log.dim(`Added ${importAlias} to ${variableName}`);
 }
 
 // --- REMOVAL LOGIC ---
 
-async function removeFeature(name) {
+async function removeFeature(name, { force = false, dryRun = false } = {}) {
 	const basePath = path.join(PROJECT_ROOT, 'src', 'features', name);
 	log.step(`Removing feature '${name}'`);
+	if (dryRun) log.dryRun('Dry run mode is enabled. No files will be modified.');
 
-	// Check if feature exists
 	let featureExists = false;
 	try {
 		await access(basePath);
@@ -713,195 +713,141 @@ async function removeFeature(name) {
 		// Directory does not exist
 	}
 
-	// Confirm removal
-	const { confirm } = await prompts({
-		type: 'confirm',
-		name: 'confirm',
-		message: featureExists
-			? `Remove feature '${name}' from registries and delete directory?`
-			: `Feature directory doesn't exist, but remove '${name}' from registries?`,
-		initial: false,
-	});
+	if (!force) {
+		const { confirm } = await prompts({
+			type: 'confirm',
+			name: 'confirm',
+			message: featureExists
+				? `Remove feature '${name}' from registries and delete its directory?`
+				: `Feature directory doesn't exist. Remove '${name}' from registries anyway?`,
+			initial: false,
+		});
 
-	if (!confirm) {
-		log.warn('Removal cancelled.');
-		process.exit(0);
+		if (!confirm) {
+			log.warn('Removal cancelled.');
+			process.exit(0);
+		}
 	}
 
-	// Initialize ts-morph project
 	const project = new Project({
 		tsConfigFilePath: path.join(PROJECT_ROOT, 'tsconfig.json'),
 	});
-
 	const updatedFiles = [];
 
-	// Remove from tRPC root router
 	try {
-		await removeTrpcRouter(name, project);
+		await removeTrpcRouter(name, project, { dryRun });
 		updatedFiles.push('src/trpc/server/api/site/root.ts');
 	} catch (err) {
 		log.warn(`Could not update tRPC router: ${err.message}`);
 	}
 
-	// Remove from modals registry
 	try {
-		await removeModalsRegistry(name, project);
+		await removeSpreadRegistry({
+			project, dryRun,
+			filePath: path.join(PROJECT_ROOT, 'src/modals/registry.ts'),
+			variableName: 'modalRegistry', importAlias: `${kebabToCamel(name)}Modals`,
+			moduleSpecifier: `@/features/${name}/modals`,
+		});
 		updatedFiles.push('src/modals/registry.ts');
 	} catch (err) {
 		log.warn(`Could not update modals registry: ${err.message}`);
 	}
 
-	// Remove from header actions registry
 	try {
-		await removeHeaderActionsRegistry(name, project);
+		await removeSpreadRegistry({
+			project, dryRun,
+			filePath: path.join(PROJECT_ROOT, 'src/components/layouts/main/header/header-actions/registry.ts'),
+			variableName: 'headerActionRegistry', importAlias: `${kebabToCamel(name)}HeaderActions`,
+			moduleSpecifier: `@/features/${name}/header-actions`,
+		});
 		updatedFiles.push('src/components/layouts/main/header/header-actions/registry.ts');
 	} catch (err) {
 		log.warn(`Could not update header actions registry: ${err.message}`);
 	}
 
-	// Save all changes
-	await project.save();
+	if (dryRun) {
+		log.dryRun('Would save changes to all modified source files.');
+	} else {
+		await project.save();
+	}
 
-	// Delete feature directory if it exists
 	if (featureExists) {
-		const { confirmDelete } = await prompts({
-			type: 'confirm',
-			name: 'confirmDelete',
-			message: `Delete feature directory at ${basePath}?`,
-			initial: true,
-		});
-
-		if (confirmDelete) {
-			const { rm } = await import('fs/promises');
+		if (dryRun) {
+			log.dryRun(`Would delete feature directory: ${basePath}`);
+		} else {
 			await rm(basePath, { recursive: true, force: true });
 			log.success(`Deleted feature directory: ${basePath}`);
 		}
 	}
 
-	// Print summary
 	log.step('🗑️  Feature removal complete!');
-	console.log();
 	if (updatedFiles.length > 0) {
+		console.log();
 		console.log(chalk.bold('Updated files:'));
 		updatedFiles.forEach((file) => log.dim(file));
+		console.log();
 	}
-	console.log();
 }
 
-async function removeTrpcRouter(name, project) {
+async function removeTrpcRouter(name, project, { dryRun }) {
 	const filePath = path.join(PROJECT_ROOT, 'src/trpc/server/api/site/root.ts');
-	const sourceFile = project.addSourceFileAtPath(filePath);
+	const sourceFile = project.getSourceFile(filePath) ?? project.addSourceFileAtPath(filePath);
 	const camelName = kebabToCamel(name);
-	const routerName = `${camelName}FeatureRouter`;
 
-	// Remove import
-	const importDecl = sourceFile.getImportDeclaration(
-		(decl) => decl.getModuleSpecifierValue() === `@/features/${name}/api`
-	);
+	const importDecl = sourceFile.getImportDeclaration(d => d.getModuleSpecifierValue() === `@/features/${name}/api`);
 	if (importDecl) {
-		importDecl.remove();
+		if (dryRun) log.dryRun(`Would remove import from ${filePath}`);
+		else importDecl.remove();
 	}
 
-	// Remove from appRouter object
 	const appRouter = sourceFile.getVariableDeclaration('appRouter');
 	if (appRouter) {
-		const callExpr = appRouter.getInitializer();
-		if (callExpr) {
-			const args = callExpr.asKindOrThrow(SyntaxKind.CallExpression).getArguments();
-			if (args.length > 0) {
-				const objLiteral = args[0].asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
-				const property = objLiteral.getProperty(camelName);
-				if (property) {
-					property.remove();
-				}
+		const objLiteral = appRouter.getInitializerIfKind(SyntaxKind.CallExpression)?.getArguments()[0]?.asKind(SyntaxKind.ObjectLiteralExpression);
+		if (objLiteral) {
+			const prop = objLiteral.getProperty(camelName);
+			if (prop) {
+				if (dryRun) log.dryRun(`Would remove '${camelName}' property from appRouter in ${filePath}`);
+				else prop.remove();
 			}
 		}
 	}
 
-	sourceFile.formatText();
+	if (!dryRun) sourceFile.formatText();
 	log.success('Removed from tRPC router');
 }
 
-async function removeModalsRegistry(name, project) {
-	const filePath = path.join(PROJECT_ROOT, 'src/modals/registry.ts');
-	const sourceFile = project.addSourceFileAtPath(filePath);
-	const camelName = kebabToCamel(name);
-	const importAlias = `${camelName}Modals`;
+async function removeSpreadRegistry({ project, dryRun, filePath, variableName, importAlias, moduleSpecifier }) {
+	const sourceFile = project.getSourceFile(filePath) ?? project.addSourceFileAtPath(filePath);
 
-	// Remove import
-	const importDecl = sourceFile.getImportDeclaration(
-		(decl) => decl.getModuleSpecifierValue() === `@/features/${name}/modals`
-	);
+	const importDecl = sourceFile.getImportDeclaration(d => d.getModuleSpecifierValue() === moduleSpecifier);
 	if (importDecl) {
-		importDecl.remove();
+		if (dryRun) log.dryRun(`Would remove import from ${filePath}`);
+		else importDecl.remove();
 	}
 
-	// Remove from modalRegistry object
-	const registry = sourceFile.getVariableDeclaration('modalRegistry');
+	const registry = sourceFile.getVariableDeclaration(variableName);
 	if (registry) {
 		let objLiteral;
 		const initializer = registry.getInitializer();
-
-		if (initializer?.getKind() === SyntaxKind.AsExpression) {
-			objLiteral = initializer.getExpression();
-		} else if (initializer?.getKind() === SyntaxKind.ObjectLiteralExpression) {
-			objLiteral = initializer;
+		if (initializer?.isKind(SyntaxKind.AsExpression)) {
+			objLiteral = initializer.getExpressionIfKind(SyntaxKind.ObjectLiteralExpression);
+		} else {
+			objLiteral = initializer?.asKind(SyntaxKind.ObjectLiteralExpression);
 		}
 
 		if (objLiteral) {
 			const spreadProp = objLiteral.getProperties().find(
-				(p) => p.getKind() === SyntaxKind.SpreadAssignment &&
-					p.getText().includes(importAlias)
+				p => p.isKind(SyntaxKind.SpreadAssignment) && p.getExpression().getText() === importAlias
 			);
 			if (spreadProp) {
-				spreadProp.remove();
+				if (dryRun) log.dryRun(`Would remove '...${importAlias}' from ${variableName} in ${filePath}`);
+				else spreadProp.remove();
 			}
 		}
 	}
 
-	sourceFile.formatText();
-	log.success('Removed from modals registry');
-}
-
-async function removeHeaderActionsRegistry(name, project) {
-	const filePath = path.join(PROJECT_ROOT, 'src/components/layouts/main/header/header-actions/registry.ts');
-	const sourceFile = project.addSourceFileAtPath(filePath);
-	const camelName = kebabToCamel(name);
-	const importAlias = `${camelName}HeaderActions`;
-
-	// Remove import
-	const importDecl = sourceFile.getImportDeclaration(
-		(decl) => decl.getModuleSpecifierValue() === `@/features/${name}/header-actions`
-	);
-	if (importDecl) {
-		importDecl.remove();
-	}
-
-	// Remove from headerActionRegistry object
-	const registry = sourceFile.getVariableDeclaration('headerActionRegistry');
-	if (registry) {
-		let objLiteral;
-		const initializer = registry.getInitializer();
-
-		if (initializer?.getKind() === SyntaxKind.AsExpression) {
-			objLiteral = initializer.getExpression();
-		} else if (initializer?.getKind() === SyntaxKind.ObjectLiteralExpression) {
-			objLiteral = initializer;
-		}
-
-		if (objLiteral) {
-			const spreadProp = objLiteral.getProperties().find(
-				(p) => p.getKind() === SyntaxKind.SpreadAssignment &&
-					p.getText().includes(importAlias)
-			);
-			if (spreadProp) {
-				spreadProp.remove();
-			}
-		}
-	}
-
-	sourceFile.formatText();
-	log.success('Removed from header actions registry');
+	if (!dryRun) sourceFile.formatText();
+	log.success(`Removed from ${variableName}`);
 }
 
 // --- MAIN EXECUTION ---
@@ -910,123 +856,78 @@ async function main() {
 	console.log(chalk.bold.cyan('\n🎨 Feature Scaffolding Tool\n'));
 
 	const args = minimist(process.argv.slice(2), {
-		string: ['name', 'feature-name', 'remove'],
-		boolean: ['help'],
+		string: ['name', 'feature-name'],
+		boolean: ['help', 'remove', 'dry-run'],
 		alias: { n: 'name', f: 'feature-name', r: 'remove', h: 'help' }
 	});
 
-	// Show help
 	if (args.help) {
 		console.log(chalk.bold('Usage:'));
-		console.log('  npm run create                              # Interactive mode');
-		console.log('  npm run create -- my-feature                # Create with positional arg');
-		console.log('  npm run create -- --name=my-feature         # Create with --name flag');
-		console.log('  npm run create -- --remove my-feature       # Remove a feature');
-		console.log('  npm run create -- -r my-feature             # Remove a feature (short)');
+		console.log('  npm run create                               # Interactive mode');
+		console.log('  npm run create -- my-feature                 # Create with positional arg');
+		console.log('  npm run create -- --name=my-feature          # Create with --name flag');
+		console.log('  npm run create -- --remove my-feature        # Remove a feature');
+		console.log('  npm run create -- --dry-run [my-feature]     # Preview actions without changes');
 		console.log();
 		console.log(chalk.bold('Options:'));
-		console.log('  -n, --name          Feature name (kebab-case)');
-		console.log('  -r, --remove        Remove a feature and its registry entries');
-		console.log('  -h, --help          Show this help message');
+		console.log('  -n, --name         Feature name (kebab-case)');
+		console.log('  -r, --remove       Remove a feature and its registry entries');
+		console.log('      --dry-run      Show what would be done without making changes');
+		console.log('  -h, --help         Show this help message');
 		console.log();
 		process.exit(0);
 	}
 
-	// Handle removal mode
-	const removeArg = args.remove ?? args.r;
-	if (removeArg !== undefined) {
-		const featureName =
-			typeof removeArg === 'string'
-				? removeArg
-				: (args._ && typeof args._[0] === 'string' ? args._[0] : undefined);
+	const options = { dryRun: args['dry-run'] ?? false };
+	const isRemoveMode = args.remove;
+	let featureName = args.name || args['feature-name'] || args._[0];
 
+	if (isRemoveMode) {
 		if (!featureName) {
 			log.error('Feature name is required for removal. Usage: npm run create -- --remove <feature-name>');
 			process.exit(1);
 		}
-
 		if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(featureName)) {
 			log.error('Feature name must be in kebab-case (e.g., my-feature, user-profile)');
 			process.exit(1);
 		}
-
-		await removeFeature(featureName);
+		await removeFeature(featureName, options);
 		return;
 	}
 
-	// Support multiple argument formats for creation:
-	// 1. --name=my-feature or --name my-feature
-	// 2. --feature-name=my-feature or -f my-feature
-	// 3. Positional: npm run create -- my-feature
-	let featureName = args.name || args['feature-name'] || args._[0];
-
-	// Prompt for feature name if not provided
 	if (!featureName) {
 		const response = await prompts({
 			type: 'text',
 			name: 'name',
 			message: 'Enter the name for the new feature (kebab-case):',
-			validate: (value) => {
-				if (!value) {
-					return 'Feature name is required';
-				}
-				if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
-					return 'Name must be in kebab-case (e.g., my-feature, user-profile)';
-				}
-				return true;
-			},
+			validate: (value) =>
+				/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
+					? true
+					: 'Name must be in kebab-case (e.g., my-feature, user-profile)',
 		});
-
 		if (!response.name) {
 			log.error('Feature name is required. Aborting.');
 			process.exit(1);
 		}
-
 		featureName = response.name;
 	}
 
-	// Validate feature name format
 	if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(featureName)) {
 		log.error('Feature name must be in kebab-case (e.g., my-feature, user-profile)');
 		process.exit(1);
 	}
 
-	// Prompt for module selection
 	const { modules } = await prompts({
 		type: 'multiselect',
 		name: 'modules',
 		message: 'Select the modules to create for this feature:',
 		choices: [
-			{
-				title: 'API (tRPC routes and services)',
-				value: 'api',
-				selected: true,
-			},
-			{
-				title: 'Components (React components)',
-				value: 'components',
-				selected: true,
-			},
-			{
-				title: 'Lib (types and validation)',
-				value: 'lib',
-				selected: true,
-			},
-			{
-				title: 'Pages (reusable page sections)',
-				value: 'pages',
-				selected: true,
-			},
-			{
-				title: 'Header Actions (dynamic header content)',
-				value: 'header-actions',
-				selected: false,
-			},
-			{
-				title: 'Modals (dialogs/drawers)',
-				value: 'modals',
-				selected: false,
-			},
+			{ title: 'API (tRPC routes and services)', value: 'api', selected: true },
+			{ title: 'Components (React components)', value: 'components', selected: true },
+			{ title: 'Lib (types and validation)', value: 'lib', selected: true },
+			{ title: 'Pages (reusable page sections)', value: 'pages', selected: true },
+			{ title: 'Header Actions (dynamic header content)', value: 'header-actions' },
+			{ title: 'Modals (dialogs/drawers)', value: 'modals' },
 		],
 		hint: '- Space to select. Return to submit',
 		min: 1,
@@ -1037,11 +938,9 @@ async function main() {
 		process.exit(0);
 	}
 
-	// Create the feature
-	await createFeature(featureName, modules);
+	await createFeature(featureName, modules, options);
 }
 
-// Run the script
 main().catch((err) => {
 	log.error('An unexpected error occurred:');
 	console.error(err);

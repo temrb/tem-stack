@@ -1,7 +1,7 @@
-import type { ForwardedRef, ReactNode } from 'react';
+import { cn } from '@/lib/core/utils';
 import { Slot } from '@radix-ui/react-slot';
 import { useLinkStatus } from 'next/link';
-import { cn } from '@/lib/core/utils';
+import type { ForwardedRef, ReactNode } from 'react';
 
 export interface LinkButtonContentProps {
 	loading: boolean;
@@ -53,6 +53,12 @@ export function LinkButtonContent({
 				asChild ? className : '',
 				combinedDisabled && (pendingClassName || 'cursor-progress'),
 			)}
+			onClick={(e) => {
+				if (combinedDisabled) {
+					e.preventDefault();
+					return;
+				}
+			}}
 			{...restProps}
 		>
 			{renderContent(combinedLoading)}

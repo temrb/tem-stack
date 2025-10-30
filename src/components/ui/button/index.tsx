@@ -8,7 +8,7 @@ import { cn } from '@/lib/core/utils';
 import { Slot } from '@radix-ui/react-slot';
 import { usePathname } from 'next/navigation';
 import type { MouseEvent, ReactNode } from 'react';
-import { forwardRef, useCallback, useEffect } from 'react';
+import { forwardRef, useCallback, useEffect, useRef } from 'react';
 import { ButtonWithTooltip } from './components/button-with-tooltip';
 import { LinkButton } from './components/link-button';
 import { useButtonAuth } from './hooks';
@@ -21,100 +21,126 @@ import { buttonVariants, renderButtonContent } from './lib/utils';
 
 const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonProps>(
 	(props, ref) => {
-	const {
-		className,
-		variant,
-		size,
-		requireAuth = false,
-		loading = false,
-		children,
-		onClick,
-		icon,
-		iconPosition = 'left',
-		shortcut,
-		disabledTooltip,
-		disabled,
-		asChild = false,
-		text,
-		textWrapperClassName,
-		count,
-		href,
-		newTab,
-		pendingClassName,
-		disableWhilePending,
-		prefetch,
-		authRedirectFallback,
-		tooltipContent,
-		tooltipSide,
-		tooltipSideOffset,
-		tooltipContentClassName,
-		...restProps
-	} = props;
+		const {
+			className,
+			variant,
+			size,
+			requireAuth = false,
+			loading = false,
+			children,
+			onClick,
+			icon,
+			iconPosition = 'left',
+			shortcut,
+			disabledTooltip,
+			disabled,
+			asChild = false,
+			text,
+			textWrapperClassName,
+			count,
+			href,
+			newTab,
+			pendingClassName,
+			disableWhilePending,
+			prefetch,
+			authRedirectFallback,
+			tooltipContent,
+			tooltipSide,
+			tooltipSideOffset,
+			tooltipContentClassName,
+			...restProps
+		} = props;
 
-	validateAriaProps(restProps, 'Button');
+		validateAriaProps(restProps, 'Button');
 
-	const { data: session, isPending } = useSession();
-	const pathname = usePathname();
-	const { isMobile } = useMediaQuery();
+		const { data: session, isPending } = useSession();
+		const pathname = usePathname();
+		const { isMobile } = useMediaQuery();
 
-	const isAuthenticated = !isPending && !!session;
-	const { isAuthRedirecting, handleAuthRedirect } = useButtonAuth({
-		requireAuth,
-		isAuthenticated,
-		authRedirectFallback,
-		href,
-		pathname,
-	});
+		const isAuthenticated = !isPending && !!session;
+		const { isAuthRedirecting, handleAuthRedirect } = useButtonAuth({
+			requireAuth,
+			isAuthenticated,
+			authRedirectFallback,
+			href,
+			pathname,
+		});
 
-	const isDisabled = disabled || loading || isAuthRedirecting;
-	const Comp = asChild ? Slot : 'button';
+		const isDisabled = disabled || loading || isAuthRedirecting;
+		const Comp = asChild ? Slot : 'button';
 
-	// Accessibility warning for icon-only buttons in development
-	useEffect(() => {
-		if (
-			process.env.NODE_ENV === 'development' &&
-			size === 'icon' &&
-			!restProps['aria-label'] &&
-			!restProps['aria-labelledby']
-		) {
-			console.warn(
-				`Accessibility Warning: An icon-only button should have an 'aria-label' or 'aria-labelledby' prop for screen readers.`,
-			);
-		}
-	}, [size, restProps]);
+		// Internal ref for keyboard shortcut handling
+		const buttonRef = useRef<HTMLButtonElement | HTMLAnchorElement | null>(null);
 
-	const handleClick = useCallback(
-		(event: MouseEvent<HTMLButtonElement>) => {
-			if (handleAuthRedirect(event)) return;
-			onClick?.(event);
-		},
-		[handleAuthRedirect, onClick],
-	);
+		// Merge internal ref with forwarded ref
+		const setButtonRef = useCallback(
+			(node: HTMLButtonElement | HTMLAnchorElement | null) => {
+				buttonRef.current = node;
+				if (!ref) return;
+				if (typeof ref === 'function') {
+					ref(node);
+				} else {
+					(ref as React.MutableRefObject<HTMLButtonElement | HTMLAnchorElement | null>).current = node;
+				}
+			},
+			[ref],
+		);
 
-	// Keyboard shortcut support
-	useKeyboardShortcut(
-		shortcut || '',
-		() => {
-			if (!isDisabled && onClick) {
-				const syntheticEvent = new MouseEvent('click', {
-					bubbles: true,
-					cancelable: true,
-				}) as unknown as MouseEvent<HTMLButtonElement>;
-				handleClick(syntheticEvent);
+		// Accessibility warning for icon-only buttons in development
+		useEffect(() => {
+			if (
+				process.env.NODE_ENV === 'development' &&
+				size === 'icon' &&
+				!restProps['aria-label'] &&
+				!restProps['aria-labelledby']
+			) {
+				console.warn(
+					`Accessibility Warning: An icon-only button should have an 'aria-label' or 'aria-labelledby' prop for screen readers.`,
+				);
 			}
-		},
-		{
-			enabled: !!shortcut && !isDisabled && !isMobile,
-		},
-	);
+		}, [size, restProps]);
 
-	// Memoized content renderer
-	const renderContent = useCallback(
-		(isLoadingOverride?: boolean): ReactNode => {
-			return renderButtonContent({
+		const handleClick = useCallback(
+			(event: MouseEvent<HTMLButtonElement>) => {
+				if (handleAuthRedirect(event)) return;
+				onClick?.(event);
+			},
+			[handleAuthRedirect, onClick],
+		);
+
+		// Keyboard shortcut support
+		useKeyboardShortcut(
+			shortcut || '',
+			() => {
+				if (!isDisabled) {
+					buttonRef.current?.click();
+				}
+			},
+			{
+				enabled: !!shortcut && !isDisabled && !isMobile,
+			},
+		);
+
+		// Memoized content renderer
+		const renderContent = useCallback(
+			(isLoadingOverride?: boolean): ReactNode => {
+				return renderButtonContent({
+					children,
+					text,
+					loading: isLoadingOverride ?? loading,
+					icon,
+					iconPosition,
+					size,
+					shortcut,
+					count,
+					isMobile,
+					textWrapperClassName,
+				});
+			},
+			[
 				children,
 				text,
-				loading: isLoadingOverride ?? loading,
+				loading,
 				icon,
 				iconPosition,
 				size,
@@ -122,88 +148,75 @@ const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonProps>(
 				count,
 				isMobile,
 				textWrapperClassName,
-			});
-		},
-		[
-			children,
-			text,
-			loading,
-			icon,
-			iconPosition,
-			size,
-			shortcut,
-			count,
-			isMobile,
-			textWrapperClassName,
-		],
-	);
-
-	// Link button variant
-	if (href) {
-		return (
-			<LinkButton
-				href={href}
-				newTab={newTab}
-				prefetch={prefetch}
-				loading={loading}
-				disabled={disabled}
-				disableWhilePending={disableWhilePending}
-				isAuthRedirecting={isAuthRedirecting}
-				asChild={asChild}
-				handleAuthRedirect={handleAuthRedirect}
-				onClick={onClick}
-				variant={variant}
-				size={size}
-				className={className}
-				pendingClassName={pendingClassName}
-				disabledTooltip={disabledTooltip}
-				renderContent={renderContent}
-				ref={ref}
-				restProps={restProps}
-				tooltipContent={tooltipContent}
-				tooltipSide={tooltipSide}
-				tooltipSideOffset={tooltipSideOffset}
-				tooltipContentClassName={tooltipContentClassName}
-				isMobile={isMobile}
-			/>
+			],
 		);
-	}
 
-	// Regular button variant
-	const buttonElement = (
-		<Comp
-			className={cn(buttonVariants({ variant, size }), className)}
-			ref={ref as React.Ref<HTMLButtonElement>}
-			disabled={isDisabled}
-			onClick={handleClick}
-			aria-busy={loading ? 'true' : undefined}
-			title={
-				disabledTooltip && isDisabled
-					? String(disabledTooltip)
-					: undefined
-			}
-			{...restProps}
-		>
-			{renderContent()}
-		</Comp>
-	);
+		// Link button variant
+		if (href) {
+			return (
+				<LinkButton
+					href={href}
+					newTab={newTab}
+					prefetch={prefetch}
+					loading={loading}
+					disabled={disabled}
+					disableWhilePending={disableWhilePending}
+					isAuthRedirecting={isAuthRedirecting}
+					asChild={asChild}
+					handleAuthRedirect={handleAuthRedirect}
+					onClick={onClick}
+					variant={variant}
+					size={size}
+					className={className}
+					pendingClassName={pendingClassName}
+					disabledTooltip={disabledTooltip}
+					renderContent={renderContent}
+					ref={ref}
+					restProps={restProps}
+					tooltipContent={tooltipContent}
+					tooltipSide={tooltipSide}
+					tooltipSideOffset={tooltipSideOffset}
+					tooltipContentClassName={tooltipContentClassName}
+					isMobile={isMobile}
+				/>
+			);
+		}
 
-	// Wrap with tooltip if content provided
-	if (tooltipContent && !isMobile) {
-		return (
-			<ButtonWithTooltip
-				tooltipContent={tooltipContent}
-				tooltipSide={tooltipSide}
-				tooltipSideOffset={tooltipSideOffset}
-				tooltipContentClassName={tooltipContentClassName}
-				isMobile={isMobile}
+		// Regular button variant
+		const buttonElement = (
+			<Comp
+				className={cn(buttonVariants({ variant, size }), className)}
+				ref={setButtonRef}
+				disabled={isDisabled}
+				onClick={handleClick}
+				aria-busy={loading ? 'true' : undefined}
+				title={
+					disabledTooltip && isDisabled
+						? String(disabledTooltip)
+						: undefined
+				}
+				{...restProps}
 			>
-				{buttonElement}
-			</ButtonWithTooltip>
+				{renderContent()}
+			</Comp>
 		);
-	}
 
-	return buttonElement;
+		// Wrap with tooltip if content provided
+		if (tooltipContent && !isMobile) {
+			return (
+				<ButtonWithTooltip
+					tooltipContent={tooltipContent}
+					tooltipSide={tooltipSide}
+					tooltipSideOffset={tooltipSideOffset}
+					tooltipContentClassName={tooltipContentClassName}
+					isMobile={isMobile}
+				>
+					{buttonElement}
+				</ButtonWithTooltip>
+			);
+		}
+
+		return buttonElement;
 	},
 );
 

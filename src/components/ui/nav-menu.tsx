@@ -52,43 +52,25 @@ const LinkMenuItem: React.FC<{ item: MenuItem; onClose: () => void }> = ({
 	item,
 	onClose,
 }) => (
-	<Button
-		size='sm'
-		className='flex w-full justify-start'
-		variant='ghost'
-		asChild
+	<Link
+		href={item.href || '#'}
 		onClick={onClose}
+		className='flex w-full justify-start rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground'
 		aria-label={`Navigate to ${item.text}`}
-	>
-		<Link href={item.href || '#'} aria-label={`Navigate to ${item.text}`}>
-			<span className='flex items-center space-x-2'>
-				{item.icon}
-				<span className='text-xs md:text-sm'>{item.text}</span>
-			</span>
-		</Link>
-	</Button>
-);
-
-// Helper component for button menu item
-const ButtonMenuItem: React.FC<{ item: MenuItem; onClose: () => void }> = ({
-	item,
-	onClose,
-}) => (
-	<Button
-		variant='ghost'
-		className='flex w-full justify-start'
-		size='sm'
-		onClick={() => {
-			item.onClick?.();
-			onClose();
-		}}
-		aria-label={item.text}
 	>
 		<span className='flex items-center space-x-2'>
 			{item.icon}
 			<span className='text-xs md:text-sm'>{item.text}</span>
 		</span>
-	</Button>
+	</Link>
+);
+
+// Helper component for button menu item
+const ButtonMenuItem: React.FC<{ item: MenuItem }> = ({ item }) => (
+	<span className='flex w-full items-center space-x-2'>
+		{item.icon}
+		<span className='text-xs md:text-sm'>{item.text}</span>
+	</span>
 );
 
 const NavMenu: React.FC<NavMenuProps> = ({
@@ -140,23 +122,38 @@ const NavMenu: React.FC<NavMenuProps> = ({
 			<DropdownMenuContent align={align} sideOffset={sideOffset}>
 				{validatedItems.map((item) => {
 					const isActive = pathname === item.href;
-					return (
-						<DropdownMenuItem key={item.id}>
-							{item.type === 'link' ? (
-								isActive ? (
-									<ActiveMenuItem item={item} />
-								) : (
-									<LinkMenuItem
-										item={item}
-										onClose={handleCloseDropdown}
-									/>
-								)
-							) : (
-								<ButtonMenuItem
+
+					// Active items: render as non-interactive div
+					if (item.type === 'link' && isActive) {
+						return (
+							<DropdownMenuItem key={item.id} disabled>
+								<ActiveMenuItem item={item} />
+							</DropdownMenuItem>
+						);
+					}
+
+					// Link items: use asChild to make Link the interactive element
+					if (item.type === 'link') {
+						return (
+							<DropdownMenuItem key={item.id} asChild>
+								<LinkMenuItem
 									item={item}
 									onClose={handleCloseDropdown}
 								/>
-							)}
+							</DropdownMenuItem>
+						);
+					}
+
+					// Button items: handle action in onSelect
+					return (
+						<DropdownMenuItem
+							key={item.id}
+							onSelect={() => {
+								item.onClick?.();
+								handleCloseDropdown();
+							}}
+						>
+							<ButtonMenuItem item={item} />
 						</DropdownMenuItem>
 					);
 				})}

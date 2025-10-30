@@ -56,12 +56,10 @@ const MenubarItem = (props: Route) => {
 			onClick={closeMobileMenubar}
 			aria-label={displayName}
 			aria-current={isActive ? 'page' : undefined}
-			// disabled={isActive}
+			disabled={isActive}
 			className={cn(
 				baseStyles,
-				isActive
-					? 'pointer-events-none'
-					: 'pointer-events-auto text-muted-foreground',
+				!isActive && 'text-muted-foreground',
 			)}
 			icon={
 				Icon && (
