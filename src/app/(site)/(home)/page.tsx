@@ -10,7 +10,12 @@ export const metadata: Metadata = {
 };
 
 const Page = () => {
-	return <div>Page</div>;
+	return (
+		<section className='p-4'>
+			<h1 className='text-2xl font-bold'>Welcome to the Home Page</h1>
+			<p>This is the main content area of the home page.</p>
+		</section>
+	);
 };
 
 export default Page;

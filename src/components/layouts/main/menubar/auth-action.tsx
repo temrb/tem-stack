@@ -4,14 +4,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import SupportButton from '@/components/ui/button/support-button';
 import NavMenu from '@/components/ui/nav-menu';
 import { signOut, useSession } from '@/lib/auth/auth-client';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
 import { useRouter } from 'next/navigation';
 import { LuBolt, LuLogOut, LuShield } from 'react-icons/lu';
 
 const AuthAction = () => {
 	const { data: session, isPending } = useSession();
 	const router = useRouter();
-	const { setMenubar } = useLayoutStore();
 	const admin = session?.user?.role === 'ADMIN';
 
 	const handleSignOut = async () => {
@@ -57,7 +55,6 @@ const AuthAction = () => {
 							</Avatar>
 						</button>
 					}
-					onItemClick={() => setMenubar(false)}
 					items={[
 						...(admin
 							? [

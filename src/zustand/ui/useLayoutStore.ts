@@ -4,17 +4,19 @@ import {
 	type BaseVersionedState,
 	type StoreVersionConfig,
 } from '@/lib/infra/storage/zustand';
+import { MEDIA_QUERIES } from '@/lib/ui/breakpoints';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 
 const isDesktop =
-	typeof window !== 'undefined' &&
-	window.matchMedia('(min-width: 1024px)').matches;
+	typeof window !== 'undefined' && window.matchMedia(MEDIA_QUERIES.desktop).matches;
 
 interface LayoutState extends BaseVersionedState {
 	menubar: boolean;
 	setMenubar: (menubar: boolean) => void;
+	toggleMenubar: () => void;
+	closeMobileMenubar: () => void;
 	isLoading: boolean;
 	setLoading: (loading: boolean) => void;
 }
@@ -44,6 +46,20 @@ export const useLayoutStore = create<LayoutState>()(
 			setMenubar: (menubar: boolean) =>
 				set((state) => {
 					state.menubar = menubar;
+				}),
+			toggleMenubar: () =>
+				set((state) => {
+					state.menubar = !state.menubar;
+				}),
+			closeMobileMenubar: () =>
+				set((state) => {
+					// Check if mobile (< 768px, matching Tailwind md breakpoint)
+					const isMobile =
+						typeof window !== 'undefined' &&
+						window.matchMedia(MEDIA_QUERIES.mobile).matches;
+					if (isMobile) {
+						state.menubar = false;
+					}
 				}),
 			isLoading: true,
 			setLoading: (loading) =>

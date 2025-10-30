@@ -1,7 +1,6 @@
+// src/components/layouts/main/menubar/menubar-item.tsx
 'use client';
-
 import { Button } from '@/components/ui/button';
-import { useMediaQuery } from '@/hooks';
 import type { Route } from '@/lib/core/types/routes';
 import { cn } from '@/lib/core/utils';
 import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
@@ -19,37 +18,30 @@ const MenubarItem = (props: Route) => {
 		icon: Icon,
 	} = props;
 	const currentPath = usePathname();
-	const { setMenubar } = useLayoutStore();
-	const { isMobile } = useMediaQuery();
+	const { closeMobileMenubar } = useLayoutStore();
 
 	const navigationPath = displayPath || path;
-
 	const isActive =
 		currentPath === navigationPath ||
-		(navigationPath !== '/' && currentPath.startsWith(navigationPath));
+		(navigationPath !== '/' &&
+			currentPath.startsWith(navigationPath + '/'));
 
-	const handleMenubarClose = () => {
-		if (isMobile) {
-			setMenubar(false);
-		}
-	};
-
-	const defaultStyles =
-		'flex w-full items-center justify-start md:px-3 md:py-1 p-4 text-sm font-medium text-muted-foreground md:rounded-sm';
+	const baseStyles =
+		'flex w-full items-center justify-start gap-3 md:px-3 md:py-1 p-4 text-sm font-medium md:rounded-sm';
 
 	if (status) {
 		return (
 			<div
-				className={cn(defaultStyles, 'cursor-default opacity-60')}
+				className={cn(baseStyles)}
 				aria-label={`${displayName} - ${status}`}
 			>
 				{Icon && (
 					<Icon
-						className='mr-2 h-4 w-4 flex-shrink-0'
+						className='h-4 w-4 flex-shrink-0'
 						aria-hidden='true'
 					/>
 				)}
-				<p className='text-overflow w-full truncate font-mono italic'>
+				<p className='w-full truncate font-mono italic'>
 					{status === 'soon' && 'Soon'}
 					{status === 'next' && 'Next Update'}
 				</p>
@@ -59,29 +51,28 @@ const MenubarItem = (props: Route) => {
 
 	return (
 		<Button
-			variant='ghost'
-			className={cn(
-				defaultStyles,
-				'gap-3',
-				isActive &&
-					'bg-foreground text-background md:pointer-events-none',
-			)}
-			onClick={handleMenubarClose}
+			variant={isActive ? 'default' : 'ghost'}
+			href={isActive ? undefined : navigationPath}
+			onClick={closeMobileMenubar}
 			aria-label={displayName}
-			href={navigationPath}
+			aria-current={isActive ? 'page' : undefined}
+			// disabled={isActive}
+			className={cn(
+				baseStyles,
+				isActive
+					? 'pointer-events-none'
+					: 'pointer-events-auto text-muted-foreground',
+			)}
 			icon={
 				Icon && (
-					<Icon
-						className='h-4 w-4 flex-shrink-0'
-						aria-hidden='true'
-					/>
+					<Icon className='size-4 flex-shrink-0' aria-hidden='true' />
 				)
 			}
 			iconPosition='left'
-			disableWhilePending
-		>
-			{displayName}
-		</Button>
+			disableWhilePending={true}
+			prefetch={false}
+			text={displayName}
+		/>
 	);
 };
 

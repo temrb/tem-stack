@@ -141,7 +141,7 @@ export const ModalFooterActions: React.FC<ModalFooterActionsProps> = ({
 	};
 
 	const getButtonVariant = (action: ModalAction) => {
-		if (action.variant) {
+		if (action.variant && action.variant !== 'none') {
 			return action.variant;
 		}
 
@@ -164,7 +164,7 @@ export const ModalFooterActions: React.FC<ModalFooterActionsProps> = ({
 					disabled={action.disabled || action.loading}
 					loading={action.loading}
 					aria-label={action['aria-label'] || action.label}
-					size={action.size}
+					size={action.size === 'none' ? undefined : action.size}
 					className={getButtonClasses(action)}
 				>
 					{action.label}
@@ -174,5 +174,4 @@ export const ModalFooterActions: React.FC<ModalFooterActionsProps> = ({
 	);
 };
 
-// Export types for external use
 export type { ModalAction, ModalActionPriority, ModalFooterActionsProps };

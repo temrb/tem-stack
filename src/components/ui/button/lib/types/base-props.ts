@@ -26,4 +26,12 @@ export type BaseProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
 		textWrapperClassName?: string;
 		/** Optional count badge (displayed after icon when > 0) */
 		count?: number;
+		/** Tooltip content - when provided, wraps button with tooltip */
+		tooltipContent?: ReactNode;
+		/** Tooltip position relative to button */
+		tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
+		/** Custom className for tooltip content */
+		tooltipContentClassName?: string;
+		/** Offset distance from button (in pixels) */
+		tooltipSideOffset?: number;
 	};

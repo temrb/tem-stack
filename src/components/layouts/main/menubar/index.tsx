@@ -1,12 +1,12 @@
 'use client';
 import SuspenseWrapper from '@/components/suspense-wrapper';
 import { Button } from '@/components/ui/button';
+import { useSession } from '@/lib/auth/auth-client';
 import type { Route } from '@/lib/core/types/routes';
 import { cn } from '@/lib/core/utils';
 import { routes } from '@/routes';
 import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
 import { motion } from 'framer-motion';
-import { useSession } from '@/lib/auth/auth-client';
 import { usePathname } from 'next/navigation';
 import { lazy, useCallback } from 'react';
 import { LuPanelLeftClose, LuX } from 'react-icons/lu';
@@ -58,7 +58,7 @@ const menuItemVariants = {
 };
 
 const Menubar = () => {
-	const { menubar, setMenubar } = useLayoutStore();
+	const { toggleMenubar } = useLayoutStore();
 	const currentPath = usePathname();
 	const { data: session, isPending } = useSession();
 
@@ -73,11 +73,7 @@ const Menubar = () => {
 	const renderAuthAction = useCallback(() => {
 		return (
 			<SuspenseWrapper>
-				{!isPending && session ? (
-					<AuthAction />
-				) : (
-					<UnAuthAction />
-				)}
+				{!isPending && session ? <AuthAction /> : <UnAuthAction />}
 			</SuspenseWrapper>
 		);
 	}, [session, isPending]);
@@ -95,7 +91,7 @@ const Menubar = () => {
 				<Button
 					variant='ghost'
 					size='icon'
-					onClick={() => setMenubar(!menubar)}
+					onClick={() => toggleMenubar()}
 					aria-label='Close menu'
 				>
 					<LuX className='flex size-4 md:hidden' />
@@ -132,6 +128,12 @@ const Menubar = () => {
 										/>
 									) : undefined
 								}
+								tooltipContent={
+									<p className='text-sm'>
+										{route.displayName}
+									</p>
+								}
+								tooltipSide='bottom'
 								aria-label={route.displayName}
 							/>
 						);
