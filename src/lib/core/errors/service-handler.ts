@@ -42,24 +42,15 @@ export async function executeServiceOperation<T>(
 }
 
 /**
- * Service handler for operations that may return null.
- * Throws a NOT_FOUND error if the result is null or undefined.
+ * Execute an async operation and require a non-null result, throwing NOT_FOUND if the result is missing.
  *
- * @param operation - The async operation to execute.
- * @param errorContext - Context information for logging.
- * @param notFoundMessage - User-friendly message for not found error.
- * @param internalErrorMessage - User-friendly message for internal errors.
- * @returns The non-null result of the operation.
- * @throws TRPCError with NOT_FOUND code if result is null/undefined.
- * @throws TRPCError with INTERNAL_SERVER_ERROR code on failure.
- *
- * @example
- * const post = await executeServiceOperationOrNotFound(
- *   () => site.post.findUnique({ where: { id } }),
- *   { operation: 'getPost', postId: id },
- *   'Post not found',
- *   'Failed to fetch post'
- * );
+ * @param operation - The async operation to execute that may return `T`, `null`, or `undefined`
+ * @param errorContext - Context object used when logging failures
+ * @param notFoundMessage - Message returned to the client when the result is not found
+ * @param internalErrorMessage - Message returned to the client when the operation fails due to an internal error
+ * @returns The non-null result of the operation
+ * @throws TRPCError with code `NOT_FOUND` if the operation returns `null` or `undefined`
+ * @throws TRPCError with code `INTERNAL_SERVER_ERROR` if the operation throws or rejects
  */
 export async function executeServiceOperationOrNotFound<T>(
 	operation: () => Promise<T | null | undefined>,
@@ -146,16 +137,14 @@ export function validateResourceOwnership(
 }
 
 /**
- * Validates that a resource exists and is not soft-deleted.
- * Throws a NOT_FOUND error if the check fails.
+ * Ensure a resource exists and is not soft-deleted.
  *
- * @param resource - The resource to validate.
- * @param resourceType - Type of resource for error message.
- * @param resourceId - ID of the resource for error message.
- * @throws TRPCError with NOT_FOUND code if resource doesn't exist or is deleted.
+ * Throws a NOT_FOUND TRPC error if `resource` is null/undefined or its `deletedAt` is set.
  *
- * @example
- * validateResourceExists(post, 'post', postId);
+ * @param resource - The resource to validate; narrowed by this assertion when present.
+ * @param resourceType - Human-readable resource type used in the error message (e.g., "post").
+ * @param resourceId - The identifier of the resource used in the error message.
+ * @throws TRPCError with NOT_FOUND code when the resource does not exist or has been deleted.
  */
 export function validateResourceExists<
 	T extends { id: IdType; deletedAt?: Date | null },

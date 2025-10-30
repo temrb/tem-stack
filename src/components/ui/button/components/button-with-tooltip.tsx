@@ -3,7 +3,15 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import type { ButtonWithTooltipProps } from '../lib/types';
 
 /**
- * Wrapper component that conditionally adds tooltip functionality
+ * Renders children either as-is or wrapped with a tooltip when tooltip content is provided and not on mobile.
+ *
+ * @param tooltipContent - Content to display inside the tooltip; when falsy no tooltip is rendered.
+ * @param tooltipSide - Preferred side of the tooltip relative to the trigger (default: 'top').
+ * @param tooltipSideOffset - Distance in pixels between the trigger and the tooltip (default: 4).
+ * @param tooltipContentClassName - Additional class names applied to the tooltip content element.
+ * @param isMobile - If true, disables tooltip rendering and returns children directly.
+ * @param children - Trigger element or content to render and optionally wrap with the tooltip.
+ * @returns The children rendered directly when no tooltip is needed, otherwise the children wrapped with a tooltip component.
  */
 export function ButtonWithTooltip({
 	tooltipContent,
