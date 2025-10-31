@@ -13,7 +13,7 @@ import {
 	UpdateNoteSchema,
 	type UpdateNoteInput,
 } from '@/features/user-notes/lib/validation/user-notes.z';
-import { createFormErrorHandler } from '@/hooks/useHandleFormError';
+import { createFormErrorHandler } from '@/hooks/use-handle-form-error';
 import {
 	handleTRPCError,
 	handleTRPCSuccess,

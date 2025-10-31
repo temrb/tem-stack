@@ -2,7 +2,7 @@
 
 import Link from '@/components/ui/link';
 import { cn } from '@/lib/core/utils';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useLayoutStore } from '@/zustand/ui/use-layout-store';
 import { usePathname } from 'next/navigation';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Button } from './button';

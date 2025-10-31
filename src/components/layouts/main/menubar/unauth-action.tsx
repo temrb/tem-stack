@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import SupportButton from '@/components/ui/button/support-button';
 import Logo from '@/components/ui/logo';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useLayoutStore } from '@/zustand/ui/use-layout-store';
 
 const people = [
 	{

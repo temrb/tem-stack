@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/core/utils';
 import { createRouteMatcher } from '@/lib/proxy/utils/route-matcher';
 import { routes } from '@/routes';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useLayoutStore } from '@/zustand/ui/use-layout-store';
 import { usePathname } from 'next/navigation';
 import { LuPanelLeftOpen } from 'react-icons/lu';
 import HeaderAction from './header-action';

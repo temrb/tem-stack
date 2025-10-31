@@ -126,13 +126,5 @@ export function enforceSessionSecurity(ctx: SessionContext): ValidatedUser {
 	return ctx.session.user;
 }
 
-/**
- * Utility function to check if an error is a session invalidation error
- * Used by client-side error handlers to identify session-related errors
- */
-export function isSessionInvalidationError(error: any): boolean {
-	return (
-		error?.data?.cause?.shouldInvalidateSession === true &&
-		error?.code === 'UNAUTHORIZED'
-	);
-}
+// Export the shared session error utility for convenience
+export { isSessionInvalidationError } from './utils/session-error';

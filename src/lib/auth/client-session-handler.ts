@@ -75,14 +75,5 @@ export function handleSessionErrorIfApplicable(error: unknown): boolean {
 	return false;
 }
 
-/**
- * Utility function to check if an error is a session invalidation error
- * without handling it (useful for conditional logic in components)
- */
-export function isSessionInvalidationError(error: unknown): boolean {
-	return (
-		error instanceof TRPCClientError &&
-		error.data?.cause?.shouldInvalidateSession === true &&
-		error.data.httpStatus === 401
-	);
-}
+// Export the shared session error utility for convenience
+export { isSessionInvalidationError } from './utils/session-error';

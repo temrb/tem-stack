@@ -1,1 +1,1 @@
-export * from './useButtonAuth';
+export * from './use-button-auth';

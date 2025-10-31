@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { useModals } from '@/hooks/useModals';
+import { useModals } from '@/hooks/use-modals';
 
 const DeleteAccount = () => {
 	const modals = useModals();

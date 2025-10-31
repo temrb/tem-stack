@@ -5,7 +5,7 @@ import { useSession } from '@/lib/auth/auth-client';
 import type { Route } from '@/lib/core/types/routes';
 import { cn } from '@/lib/core/utils';
 import { routes } from '@/routes';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useLayoutStore } from '@/zustand/ui/use-layout-store';
 import { motion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { lazy, useCallback } from 'react';

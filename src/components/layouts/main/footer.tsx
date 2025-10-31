@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import type { Route } from '@/lib/core/types/routes';
 import { cn } from '@/lib/core/utils';
 import { routes } from '@/routes';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useLayoutStore } from '@/zustand/ui/use-layout-store';
 import { usePathname } from 'next/navigation';
 import { LuMenu, LuX } from 'react-icons/lu';
 

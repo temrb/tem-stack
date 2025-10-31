@@ -1,4 +1,4 @@
-import { useModalStore } from '@/zustand/ui/useModalStore';
+import { useModalStore } from '@/zustand/ui/use-modal-store';
 import {
 	modalRegistry,
 	type ModalKey,

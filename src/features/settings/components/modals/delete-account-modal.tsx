@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { DeleteAccountFormSchema } from '@/features/settings/lib/validation/user.z';
-import { createFormErrorHandler } from '@/hooks/useHandleFormError';
+import { createFormErrorHandler } from '@/hooks/use-handle-form-error';
 import {
 	handleTRPCError,
 	handleTRPCSuccess,
@@ -18,7 +18,7 @@ import tryCatch from '@/lib/core/utils/try-catch';
 import { ModalFooterActions } from '@/modals/modal-footer-actions';
 import ModalLayout from '@/modals/modal-layout';
 import { api } from '@/trpc/react';
-import { useModalStore } from '@/zustand/ui/useModalStore';
+import { useModalStore } from '@/zustand/ui/use-modal-store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSession, signOut } from '@/lib/auth/auth-client';
 import { useRouter } from 'next/navigation';

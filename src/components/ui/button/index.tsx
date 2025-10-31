@@ -1,7 +1,7 @@
 // src/components/ui/button/index.tsx
 'use client';
 import { useMediaQuery } from '@/hooks';
-import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
+import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
 import { useSession } from '@/lib/auth/auth-client';
 import { validateAriaProps } from '@/lib/core/types/aria-utils';
 import { cn } from '@/lib/core/utils';

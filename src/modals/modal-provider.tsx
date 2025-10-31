@@ -2,7 +2,7 @@
 
 import SuspenseWrapper from '@/components/suspense-wrapper';
 import LoadingSpinner from '@/components/ui/loading/loading-spinner';
-import { useModalStore } from '@/zustand/ui/useModalStore';
+import { useModalStore } from '@/zustand/ui/use-modal-store';
 import { ResponsiveModal } from '@/modals/responsive-modal';
 import { modalRegistry } from '@/modals/registry';
 

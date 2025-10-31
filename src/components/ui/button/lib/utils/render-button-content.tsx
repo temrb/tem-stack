@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/core/utils';
-import { formatShortcut } from '@/hooks/useKeyboardShortcut';
+import { formatShortcut } from '@/hooks/use-keyboard-shortcut';
 import LoadingSpinner from '../../../loading/loading-spinner';
 import type { ButtonProps } from '../types';
 import getSpinnerSize from './get-spinner-size';

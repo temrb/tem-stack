@@ -1,7 +1,7 @@
 'use client';
 
 import PageLoading from '@/components/ui/loading/page-loading';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useLayoutStore } from '@/zustand/ui/use-layout-store';
 import React from 'react';
 import LayoutShell from '../layout-shell';
 import Content from './content';

@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import type { Route } from '@/lib/core/types/routes';
 import { cn } from '@/lib/core/utils';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useLayoutStore } from '@/zustand/ui/use-layout-store';
 import { usePathname } from 'next/navigation';
 
 const MenubarItem = (props: Route) => {

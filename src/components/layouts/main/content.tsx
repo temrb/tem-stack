@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/core/utils';
-import { useLayoutStore } from '@/zustand/ui/useLayoutStore';
+import { useLayoutStore } from '@/zustand/ui/use-layout-store';
 import Header from './header';
 
 export const getContentWidth = (menubar: boolean) =>
