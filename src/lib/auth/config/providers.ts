@@ -20,11 +20,6 @@ export const PROVIDER_CONFIG = [
 		label: 'Google',
 		icon: Socials.Google,
 	},
-	{
-		name: 'linkedin',
-		label: 'LinkedIn',
-		icon: Socials.LinkedIn,
-	},
 ] as const satisfies readonly ProviderMetadata[];
 
 /**
