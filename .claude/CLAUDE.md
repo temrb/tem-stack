@@ -4,29 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Tech Stack Overview
 
-- **Framework**: Next.js 16 with App Router, React 19, TypeScript 5.8
-- **Styling**: TailwindCSS with Radix UI components
-- **State Management**: Zustand with Immer for client state
+- **Framework**: Next.js 16 with App Router, React 19, TypeScript 5.9
+- **Styling**: TailwindCSS 3.4 with Radix UI components
+- **State Management**: Zustand 5 with Immer for client state
 - **API Layer**: tRPC 11 for end-to-end type-safe APIs
 - **Database**: PostgreSQL with Prisma 6.18 (using @prisma/adapter-pg for connection pooling)
-- **Authentication**: Better Auth 1.3 with Google OAuth
+- **Authentication**: Better Auth 1.3 with Google OAuth (extensible to other providers)
 - **Caching**: Upstash Redis for rate limiting and caching
-- **Validation**: Zod 4 for runtime type validation
+- **Validation**: Zod 4.1 for runtime type validation
 - **AI SDK**: Vercel AI SDK 5 (available but optional)
+- **Package Manager**: Bun (recommended) - npm/pnpm/yarn also supported
 
 ## Development Commands
 
 **Package Manager**: The project uses Bun (see `bun.lock`) but npm commands work with any package manager (npm, bun, pnpm, yarn).
+
+**Important**: The `postinstall` script automatically runs `npm run db:generate` after installing dependencies to ensure Prisma client is up to date.
 
 ### Core Development
 
 ```bash
 npm run dev              # Start dev server on port 4242 with Prisma Studio
 npm run build            # Production build with Prisma generation
-npm run lint             # Run ESLint
+npm run lint             # Run ESLint (uses flat config in eslint.config.mjs)
 npm run format           # Auto-fix with ESLint and Prettier
 npm run format:check     # Check formatting without fixing
-npm run analyze          # Analyze bundle size
+npm run analyze          # Analyze bundle size with @next/bundle-analyzer
 npm run ts-check         # TypeScript type checking without emitting files
 npm run repomix          # Generate codebase context file for AI tools
 ```
@@ -253,6 +256,17 @@ Managed via `@t3-oss/env-nextjs` in `src/env.js`:
 
 TypeScript path alias configured: `@/*` maps to `src/*`
 
+### Naming Conventions
+
+The codebase follows strict naming conventions:
+
+- **Files**: `kebab-case` (e.g., `user-notes-form.tsx`, `use-modals.ts`)
+- **Components**: `PascalCase` (e.g., `UserNotesForm`, `DeleteAccountModal`)
+- **Functions/Variables**: `camelCase` (e.g., `getUserState`, `isAuthenticated`)
+- **Constants**: `SCREAMING_SNAKE_CASE` (e.g., `SESSION_CONFIG`, `DEFAULT_USER_VALUES`)
+- **Types/Interfaces**: `PascalCase` (e.g., `UserState`, `ModalKey`)
+- **Feature directories**: `kebab-case` (e.g., `user-notes`, `settings`)
+
 ## Feature Development Guidelines
 
 When adding new features:
@@ -330,9 +344,12 @@ The repository includes custom Claude Code slash commands in `.claude/commands/`
 
 ## Important Notes
 
-- Admin routes (`/admin/*`) are only accessible in development mode and restricted to ADMIN role
-- The app uses standalone output mode for Docker deployments
-- TailwindCSS uses the `tailwind-merge` utility for className composition
-- Images use Next.js Image component with remote pattern allowlist
-- Security headers configured in `next.config.js`
-- Session tokens are validated on protected routes via the proxy middleware
+- **Admin routes**: `/admin/*` are only accessible in development mode and restricted to ADMIN role users
+- **Build output**: Uses standalone output mode for Docker deployments
+- **Styling**: TailwindCSS uses the `tailwind-merge` utility (`cn()` helper) for className composition
+- **Images**: Use Next.js Image component with remote pattern allowlist configured
+- **Security**: Custom security headers configured in `next.config.js`
+- **Session validation**: Session tokens are validated on protected routes via the proxy middleware
+- **ESLint**: Uses flat config format (eslint.config.mjs) with prettier integration
+- **TypeScript**: Strict mode enabled with `noUncheckedIndexedAccess` for safer array/object access
+- **Turbopack**: Development server uses Turbopack for faster builds (Next.js 16 default)
